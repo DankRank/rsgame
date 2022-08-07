@@ -8,6 +8,7 @@ namespace rsgame {
 bool verbose = true;
 bool gles = false;
 bool vsync = true;
+bool fullscreen = false;
 SDL_Window* window = nullptr;
 bool is_running = true;
 mat4 viewproj;
@@ -138,6 +139,10 @@ int main(int argc, char** argv)
 					case SDL_SCANCODE_ESCAPE:
 					case SDL_SCANCODE_Q:
 						is_running = false;
+						break;
+					case SDL_SCANCODE_F11:
+						fullscreen = !fullscreen;
+						SDL_SetWindowFullscreen(window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
 						break;
 					case SDL_SCANCODE_LEFT:
 						yaw += 0.1;
