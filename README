@@ -1,0 +1,14 @@
+rsgame - a heavily-inspired sandbox game
+
+- Build Instructions -
+Requirements:
+	CMake 3.11+
+	SDL 2
+	OpenGL 3.2 Core / OpenGL ES 3.0
+	libepoxy (via pkg-config)
+	libpng
+
+Instructions:
+	git submodule update --init --recursive
+	cmake -S . -B build
+	cmake --build build
