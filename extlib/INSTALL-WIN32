@@ -1,0 +1,36 @@
+There are four dependencies that must be built: zlib, libpng, sdl2 and libepoxy
+
+The build-*.cmd scripts fetch and build the dependencies for you. All of them
+follow roughly the same algorithm:
+- Use curl to download the source tarball, if it doesn't exist.
+- Delete the source directory from previous build, extract the tarball with tar,
+  and rename the directory to remove the version number from it.
+- Start the build process for both i386 and amd64. If you only want one of those
+  specify "32" or "64" as the argument to the script.
+
+Some things to note:
+- Windows 10 1804 and later come with curl and tar by default.
+- For SDL2 we actually use official binaries. These are packed in a zip, so if
+  you have a GNU tar on your PATH (as opposed to libarchive tar), it probably
+  won't work.
+- For libpng and zlib we copy the includes into a separate directory inside the
+  build directory.
+- zlib must be built before libpng, obviously.
+- libepoxy needs meson (`pip install meson`). Meson is quite a bit dumber than
+  CMake, so we can't just give it an arch and have it find an appropriate
+  compiler. Instead we must find and source vcvarsall.bat ourselves. Huge
+  shout-out to Microsoft for changing its path every single release of MSVC.
+
+To actually use the libraries, there are *-config.cmake files. Here's an example
+on how to configure the main build to use them:
+	cmake -S . -B build \
+		-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=TRUE \
+		-DZLIB_DIR=extlib \
+		-DPNG_DIR=extlib \
+		-DSDL2_DIR=extlib \
+		-Depoxy_DIR=extlib
+CMAKE_FIND_PACKAGE_PREFER_CONFIG is needed to avoid modules like FindPNG being
+loaded.
+
+To copy the required DLLs, use copy-deps.cmd.
+Usage: copy-deps [destination] [32|64]
