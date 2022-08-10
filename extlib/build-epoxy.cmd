@@ -7,10 +7,20 @@ tar -xf libepoxy-%V%.tar.gz
 ren libepoxy-%V% libepoxy
 pushd libepoxy
 set MSVC_DIR=
+if "%PROGRAMFILES(X86)%" == "" set "PROGRAMFILES(X86)=%PROGRAMFILES%"
 if "%VCInstallDir%" == "" (
-	for %%i in (Community Professional Enterprise) do (
-		if exist "%PROGRAMFILES%\Microsoft Visual Studio\2022\%%i\VC" (
-			set "MSVC_DIR=%PROGRAMFILES%\Microsoft Visual Studio\2022\%%i\VC"
+	for %%i in (2017 2019) do (
+		for %%j in (Community Professional Enterprise) do (
+			if exist "%PROGRAMFILES(X86)%\Microsoft Visual Studio\%%i\%%j\VC" (
+				set "MSVC_DIR=%PROGRAMFILES(X86)%\Microsoft Visual Studio\%%i\%%j\VC"
+			)
+		)
+	)
+	for %%i in (2022) do (
+		for %%j in (Community Professional Enterprise) do (
+			if exist "%PROGRAMFILES%\Microsoft Visual Studio\%%i\%%j\VC" (
+				set "MSVC_DIR=%PROGRAMFILES%\Microsoft Visual Studio\%%i\%%j\VC"
+			)
 		)
 	)
 	if "!MSVC_DIR!" == "" (
