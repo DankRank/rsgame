@@ -1,0 +1,5 @@
+/zlib*
+/libpng*
+/SDL2*
+/libepoxy*
+!/*-config.cmake

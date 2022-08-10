@@ -7,6 +7,7 @@
 namespace rsgame {
 bool verbose = true;
 bool gles = false;
+bool glcore = false;
 bool vsync = true;
 bool fullscreen = false;
 SDL_Window* window = nullptr;
@@ -18,6 +19,8 @@ int main(int argc, char** argv)
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--gles")) {
 			gles = true;
+		} else if (!strcmp(argv[i], "--glcore")) {
+			glcore = true;
 		} else if (!strcmp(argv[i], "--nosync")) {
 			vsync = false;
 		}
@@ -31,10 +34,14 @@ int main(int argc, char** argv)
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-	} else {
+	} else if (glcore) {
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+	} else {
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
 	}
 	int width = 854, height = 480;
 	window = SDL_CreateWindow("rsgame", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,

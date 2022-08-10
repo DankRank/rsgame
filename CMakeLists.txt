@@ -3,8 +3,13 @@ project(rsgame)
 find_package(SDL2 REQUIRED)
 find_package(OpenGL REQUIRED)
 find_package(PNG REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(EPOXY REQUIRED IMPORTED_TARGET epoxy)
+find_package(epoxy)
+if(NOT(epoxy_FOUND))
+	find_package(PkgConfig REQUIRED)
+	pkg_check_modules(EPOXY REQUIRED IMPORTED_TARGET epoxy)
+	add_library(epoxy::epoxy INTERFACE IMPORTED)
+	target_link_libraries(epoxy::epoxy INTERFACE PkgConfig::EPOXY)
+endif()
 add_subdirectory(extlib/glm)
 
 add_executable(rsgame
@@ -15,7 +20,7 @@ add_executable(rsgame
 	src/tile.cc src/tile.hh
 	src/util.cc src/util.hh
 )
-target_link_libraries(rsgame PRIVATE SDL2::SDL2 SDL2::SDL2main OpenGL::GL PkgConfig::EPOXY glm::glm PNG::PNG)
+target_link_libraries(rsgame PRIVATE SDL2::SDL2 SDL2::SDL2main OpenGL::GL epoxy::epoxy glm::glm PNG::PNG)
 target_compile_features(rsgame PRIVATE cxx_std_17)
 if(MSVC)
 	target_compile_options(rsgame PRIVATE /Zc:__cplusplus /D_CRT_SECURE_NO_WARNINGS /W3 /wd4267 /wd4244)
