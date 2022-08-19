@@ -2,19 +2,18 @@
 #ifndef RSGAME_TILE
 #define RSGAME_TILE
 namespace rsgame {
-	struct Level;
-	enum class RenderType {
-		AIR,
+	enum class RenderType : uint8_t {
+		AIR = 0,
 		CUBE,
 		PLANT,
 		SLAB,
 	};
-	struct Tile {
-		static void init();
-		static Tile *tiles[256];
-		bool is_opaque;
-		virtual uint8_t tex_for_side(int f, int data) { (void)f; (void)data; return 0; };
-		RenderType render_type;
-	};
+	namespace tiles {
+		extern RenderType render_type[256];
+		extern bool is_opaque[256];
+		uint8_t tex(uint8_t id, int face, int data);
+		void init();
+		void dump();
+	}
 }
 #endif

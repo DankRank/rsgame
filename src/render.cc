@@ -102,7 +102,7 @@ void RenderLevel::update(Uint64 target) {
 		for (int y = rc->y; y < rc->y+16; y++)
 			for (int z = rc->z; z < rc->z+16; z++)
 				for (int x = rc->x; x < rc->x+16; x++)
-					draw_block(level, level->get_tile(x, y, z), x, y, z, level->get_tile_meta(x, y, z));
+					draw_block(level, level->get_tile_id(x, y, z), x, y, z, level->get_tile_meta(x, y, z));
 		rc->flip();
 		it = dirty_chunks.erase(it);
 		if (target) {
@@ -222,27 +222,27 @@ static void draw_face_basic(float x0, float y0, float z0, float dx, float dy, fl
 static void draw_face(int x, int y, int z, int f, int tex) {
 	draw_face_basic(x, y, z, 1.f, 1.f, 1.f, f, tex);
 }
-void RenderLevel::draw_block(Level *level, Tile *tile, int x, int y, int z, int data)
+void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int data)
 {
-	switch (tile->render_type) {
+	switch (tiles::render_type[id]) {
 	case RenderType::AIR:
 		break;
 	case RenderType::CUBE:
-		if (!level->get_tile(x, y-1, z)->is_opaque)
-			draw_face(x, y, z, 0, tile->tex_for_side(0, data));
-		if (!level->get_tile(x, y+1, z)->is_opaque)
-			draw_face(x, y, z, 1, tile->tex_for_side(1, data));
-		if (!level->get_tile(x, y, z-1)->is_opaque)
-			draw_face(x, y, z, 2, tile->tex_for_side(2, data));
-		if (!level->get_tile(x, y, z+1)->is_opaque)
-			draw_face(x, y, z, 3, tile->tex_for_side(3, data));
-		if (!level->get_tile(x-1, y, z)->is_opaque)
-			draw_face(x, y, z, 4, tile->tex_for_side(4, data));
-		if (!level->get_tile(x+1, y, z)->is_opaque)
-			draw_face(x, y, z, 5, tile->tex_for_side(5, data));
+		if (!tiles::is_opaque[level->get_tile_id(x, y-1, z)])
+			draw_face(x, y, z, 0, tiles::tex(id, 0, data));
+		if (!tiles::is_opaque[level->get_tile_id(x, y+1, z)])
+			draw_face(x, y, z, 1, tiles::tex(id, 1, data));
+		if (!tiles::is_opaque[level->get_tile_id(x, y, z-1)])
+			draw_face(x, y, z, 2, tiles::tex(id, 2, data));
+		if (!tiles::is_opaque[level->get_tile_id(x, y, z+1)])
+			draw_face(x, y, z, 3, tiles::tex(id, 3, data));
+		if (!tiles::is_opaque[level->get_tile_id(x-1, y, z)])
+			draw_face(x, y, z, 4, tiles::tex(id, 4, data));
+		if (!tiles::is_opaque[level->get_tile_id(x+1, y, z)])
+			draw_face(x, y, z, 5, tiles::tex(id, 5, data));
 		break;
 	case RenderType::PLANT: {
-		int tex = tile->tex_for_side(0, data);
+		int tex = tiles::tex(id, 0, data);
 		float s = tex%16/16.f;
 		float t = tex/16/16.f;
 		vec3 ta(s       , t       , 1.f);
@@ -267,17 +267,17 @@ void RenderLevel::draw_block(Level *level, Tile *tile, int x, int y, int z, int 
 		break;
 	}
 	case RenderType::SLAB:
-		if (!level->get_tile(x, y-1, z)->is_opaque)
-			draw_face(x, y, z, 0, tile->tex_for_side(0, data));
-		draw_face_basic(x, y-.5f, z, 1.f, 1.f, 1.f, 1, tile->tex_for_side(1, data));
-		if (!level->get_tile(x, y, z-1)->is_opaque)
-			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 2, tile->tex_for_side(2, data), 1.f, .5f);
-		if (!level->get_tile(x, y, z+1)->is_opaque)
-			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 3, tile->tex_for_side(3, data), 1.f, .5f);
-		if (!level->get_tile(x-1, y, z)->is_opaque)
-			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 4, tile->tex_for_side(4, data), 1.f, .5f);
-		if (!level->get_tile(x+1, y, z)->is_opaque)
-			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 5, tile->tex_for_side(5, data), 1.f, .5f);
+		if (!tiles::is_opaque[level->get_tile_id(x, y-1, z)])
+			draw_face(x, y, z, 0, tiles::tex(id, 0, data));
+		draw_face_basic(x, y-.5f, z, 1.f, 1.f, 1.f, 1, tiles::tex(id, 1, data));
+		if (!tiles::is_opaque[level->get_tile_id(x, y, z-1)])
+			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 2, tiles::tex(id, 2, data), 1.f, .5f);
+		if (!tiles::is_opaque[level->get_tile_id(x, y, z+1)])
+			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 3, tiles::tex(id, 3, data), 1.f, .5f);
+		if (!tiles::is_opaque[level->get_tile_id(x-1, y, z)])
+			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 4, tiles::tex(id, 4, data), 1.f, .5f);
+		if (!tiles::is_opaque[level->get_tile_id(x+1, y, z)])
+			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 5, tiles::tex(id, 5, data), 1.f, .5f);
 
 		break;
 	}

@@ -3,101 +3,150 @@
 #include "tile.hh"
 #include "render.hh"
 #include "level.hh"
-namespace rsgame {
-struct AirTile : Tile {
-	AirTile() { is_opaque = false; render_type = RenderType::AIR; }
-};
-struct OpaqueTile : Tile {
-	OpaqueTile() { is_opaque = true; render_type = RenderType::CUBE; }
-};
-struct TexturedTile : OpaqueTile {
-	uint8_t tex;
-	TexturedTile(uint8_t tex) :tex(tex) {}
-	uint8_t tex_for_side(int f, int data) {
-		(void)f;
-		(void)data;
-		return tex;
+namespace rsgame::tiles {
+RenderType render_type[256] = {RenderType::AIR};
+bool is_opaque[256] = {false};
+static const uint8_t *texture_data[256] = {nullptr};
+uint8_t tex(uint8_t id, int face, int data) {
+	const uint8_t *p = texture_data[id];
+	if (!p)
+		return 0;
+	switch (*p++) {
+	default:
+		return 0;
+	case 1:
+		return *p;
+	case 6:
+		return p[face];
+	case 16:
+		return p[data];
 	}
-};
-struct PlantTile : Tile {
-	uint8_t tex;
-	PlantTile(uint8_t tex) :tex(tex) { is_opaque = false; render_type = RenderType::PLANT; }
-	uint8_t tex_for_side(int f, int data) {
-		(void)f;
-		(void)data;
-		return tex;
+}
+
+static uint8_t tex_buf[105] = {0}, *tex_p = tex_buf;
+
+struct TileBuilder {
+	uint8_t id;
+	TileBuilder(uint8_t id) :id(id) {
+		render_type[id] = RenderType::CUBE;
+		is_opaque[id] = true;
 	}
-};
-struct GlassTile : TexturedTile {
-	GlassTile(uint8_t tex) :TexturedTile(tex) {
-		is_opaque = false;
+	TileBuilder &render_as(RenderType type) {
+		render_type[id] = type;
+		if (type != RenderType::CUBE)
+			is_opaque[id] = false;
+		return *this;
 	}
-};
-struct GrassTile : OpaqueTile {
-	uint8_t tex, top, bot;
-	GrassTile(uint8_t tex, uint8_t top, uint8_t bot) :tex(tex), top(top), bot(bot) {}
-	uint8_t tex_for_side(int f, int data) {
-		(void)f;
-		(void)data;
-		switch (f) {
-		case 0:
-			return bot;
-		case 1:
-			return top;
-		default:
-			return tex;
+private:
+	void check_tex(int i) {
+		if (tex_p + 1 + i > tex_buf + sizeof(tex_buf)) {
+			fprintf(stderr, "tex_buf overrun\n");
+			abort();
 		}
 	}
-};
-struct SlabTile : GrassTile {
-	SlabTile(uint8_t tex, uint8_t top) :GrassTile(tex, top, top) {
-		render_type = RenderType::SLAB;
-		is_opaque = false;
+public:
+	TileBuilder &tex(uint8_t tex) {
+		check_tex(1);
+		texture_data[id] = tex_p;
+		*tex_p++ = 1;
+		*tex_p++ = tex;
+		return *this;
+	}
+	TileBuilder &tex_grass(uint8_t side, uint8_t top, uint8_t bot) {
+		check_tex(6);
+		texture_data[id] = tex_p;
+		*tex_p++ = 6;
+		*tex_p++ = bot;
+		*tex_p++ = top;
+		*tex_p++ = side;
+		*tex_p++ = side;
+		*tex_p++ = side;
+		*tex_p++ = side;
+		return *this;
+	}
+	TileBuilder &tex_perdata(const uint8_t *texs) {
+		check_tex(16);
+		texture_data[id] = tex_p;
+		*tex_p++ = 16;
+		memcpy(tex_p, texs, 16);
+		tex_p += 16;
+		return *this;
+	}
+	TileBuilder &transparent() {
+		is_opaque[id] = false;
+		return *this;
 	}
 };
-struct ClothTile : OpaqueTile {
-	uint8_t tex_for_side(int f, int data) {
-		(void)f;
-		if (data == 0)
-			return 4*16;
-		else
-			return 14*16 + 2 - (data&7)*16 - (data>>3);
+static constexpr uint8_t uv(int x, int y) { return y*16 + x; }
+void init() {
+	uint8_t cloth_tex[16] = {
+		uv(0, 4), uv(2, 13), uv(2, 12), uv(2, 11),
+		uv(2, 10), uv(2, 9), uv(2, 8), uv(2, 7),
+		uv(1, 14), uv(1, 13), uv(1, 12), uv(1, 11),
+		uv(1, 10), uv(1, 9), uv(1, 8), uv(1, 7),
+	};
+
+	TileBuilder(0).render_as(RenderType::AIR);
+	TileBuilder(1).tex(uv(1, 0));
+	TileBuilder(2).tex_grass(uv(3, 0), uv(0, 0), uv(2, 0));
+	TileBuilder(3).tex(uv(2, 0));
+	TileBuilder(4).tex(uv(0, 1));
+	TileBuilder(5).tex(uv(4, 0));
+	TileBuilder(6).render_as(RenderType::PLANT).tex(uv(15, 0));
+	TileBuilder(7).tex(uv(1, 1));
+	TileBuilder(12).tex(uv(2, 1));
+	TileBuilder(13).tex(uv(3, 1));
+	TileBuilder(14).tex(uv(0, 2));
+	TileBuilder(15).tex(uv(1, 2));
+	TileBuilder(16).tex(uv(2, 2));
+	TileBuilder(17).tex_grass(uv(4, 1), uv(5, 1), uv(5, 1));
+	TileBuilder(18).transparent().tex(uv(4, 3));
+	TileBuilder(19).tex(uv(0, 3));
+	TileBuilder(20).transparent().tex(uv(1, 3));
+	TileBuilder(35).tex_perdata(cloth_tex);
+	TileBuilder(37).render_as(RenderType::PLANT).tex(uv(13, 0));
+	TileBuilder(38).render_as(RenderType::PLANT).tex(uv(12, 0));
+	TileBuilder(39).render_as(RenderType::PLANT).tex(uv(13, 1));
+	TileBuilder(40).render_as(RenderType::PLANT).tex(uv(12, 1));
+	TileBuilder(41).tex(uv(7, 1));
+	TileBuilder(42).tex(uv(6, 1));
+	TileBuilder(43).tex_grass(uv(5, 0), uv(6, 0), uv(6, 0));
+	TileBuilder(44).render_as(RenderType::SLAB).tex_grass(uv(5, 0), uv(6, 0), uv(6, 0));
+	TileBuilder(45).tex(uv(7, 0));
+	TileBuilder(46).tex_grass(uv(8, 0), uv(9, 0), uv(10, 0));
+	TileBuilder(47).tex_grass(uv(3, 2), uv(4, 0), uv(4, 0));
+	TileBuilder(48).tex(uv(4, 2));
+	TileBuilder(49).tex(uv(5, 2));
+	//fprintf(stderr, "tex_buf: %d bytes used\n", (int)(tex_p-tex_buf));
+}
+void dump() {
+	printf("{\n");
+	for (int i = 0; i < 256; i++) {
+		if (render_type[i] == RenderType::AIR)
+			continue;
+		if (i != 1)
+			printf(",");
+		printf("\n\t\"%d\": {\n", i);
+		const char *rtype;
+		switch(render_type[i]) {
+			case RenderType::AIR: rtype = "AIR"; break;
+			case RenderType::CUBE: rtype = "CUBE"; break;
+			case RenderType::PLANT: rtype = "PLANT"; break;
+			case RenderType::SLAB: rtype = "SLAB"; break;
+		}
+		printf("\t\t\"render_type\": \"%s\",\n", rtype);
+		printf("\t\t\"is_opaque\": %s,\n", is_opaque[i] ? "true" : "false");
+		printf("\t\t\"texture_data\": [");
+		if (texture_data[i]) {
+			for (int j = 1; j <= texture_data[i][0]; j++) {
+				if (j != 1)
+					printf(", ");
+				printf("%d", texture_data[i][j]);
+			}
+		}
+		printf("]\n");
+		printf("\t}");
 	}
-};
-Tile *Tile::tiles[256] = {0};
-void Tile::init() {
-	tiles[0] = new AirTile();
-	for (int i = 1; i < 256; i++)
-		tiles[i] = tiles[0];
-	tiles[1] = new TexturedTile(1);
-	tiles[2] = new GrassTile(3, 0, 2);
-	tiles[3] = new TexturedTile(2);
-	tiles[4] = new TexturedTile(1*16 + 0);
-	tiles[5] = new TexturedTile(4);
-	tiles[6] = new PlantTile(15);
-	tiles[7] = new TexturedTile(1*16 + 1);
-	tiles[12] = new TexturedTile(1*16 + 2);
-	tiles[13] = new TexturedTile(1*16 + 3);
-	tiles[14] = new TexturedTile(2*16 + 0);
-	tiles[15] = new TexturedTile(2*16 + 1);
-	tiles[16] = new TexturedTile(2*16 + 2);
-	tiles[17] = new GrassTile(1*16 + 4, 1*16 + 5, 1*16 + 5);
-	tiles[18] = new GlassTile(3*16 + 4);
-	tiles[19] = new TexturedTile(3*16 + 0);
-	tiles[20] = new GlassTile(3*16 + 1);
-	tiles[35] = new ClothTile();
-	tiles[37] = new PlantTile(13);
-	tiles[38] = new PlantTile(12);
-	tiles[39] = new PlantTile(1*16 + 13);
-	tiles[40] = new PlantTile(1*16 + 12);
-	tiles[41] = new TexturedTile(1*16 + 7);
-	tiles[42] = new TexturedTile(1*16 + 6);
-	tiles[43] = new GrassTile(5, 6, 6);
-	tiles[44] = new SlabTile(5, 6);
-	tiles[45] = new TexturedTile(7);
-	tiles[46] = new GrassTile(8, 9, 10);
-	tiles[47] = new GrassTile(2*16+3, 4, 4);
-	tiles[48] = new TexturedTile(2*16 + 4);
-	tiles[49] = new TexturedTile(2*16 + 5);
+	printf("\n}\n");
 }
 }

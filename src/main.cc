@@ -17,6 +17,8 @@ mat4 viewproj;
 Frustum viewfrustum;
 int main(int argc, char** argv)
 {
+	tiles::init();
+
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--gles")) {
 			gles = true;
@@ -24,6 +26,9 @@ int main(int argc, char** argv)
 			glcore = true;
 		} else if (!strcmp(argv[i], "--nosync")) {
 			vsync = false;
+		} else if (!strcmp(argv[i], "--dump-tiles")) {
+			tiles::dump();
+			return 0;
 		}
 	}
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER)) {
@@ -83,7 +88,6 @@ int main(int argc, char** argv)
 		return 1;
 
 	fprintf(stderr, "Loading level...\n");
-	Tile::init();
 	Level level;
 
 	fprintf(stderr, "Allocating chunks...\n");

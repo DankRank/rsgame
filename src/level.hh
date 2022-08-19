@@ -4,12 +4,8 @@
 #include "tile.hh"
 #include "render.hh"
 namespace rsgame {
-	struct RenderChunk;
 	struct Level {
 		Level();
-		Tile *get_tile(int x, int y, int z) {
-			return Tile::tiles[get_tile_id(x, y, z)];
-		}
 		uint8_t get_tile_id(int x, int y, int z);
 		uint8_t get_tile_meta(int x, int y, int z);
 		void set_tile(int x, int y, int z, uint8_t id, uint8_t metadata);

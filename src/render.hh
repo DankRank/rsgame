@@ -4,6 +4,7 @@
 #include "level.hh"
 #include "util.hh"
 namespace rsgame {
+	struct Level;
 	struct RenderChunk {
 		static std::vector<float> data;
 		int x, y, z;
@@ -32,7 +33,7 @@ public:
 		void update(Uint64 target = 0);
 		void draw();
 	private:
-		void draw_block(Level *level, Tile *tile, int x, int y, int z, int data);
+		void draw_block(Level *level, uint8_t id, int x, int y, int z, int data);
 	public:
 		RenderLevel(Level *level);
 		~RenderLevel();
