@@ -19,7 +19,7 @@ GLuint compile_shader(GLenum type, const char *name, const char *source) {
 		return 0;
 	}
 	const char *sources[2] = {
-		gles ? "#version 300 es\nprecision mediump float;\n" : "#version 150 core\n",
+		shader_prologue,
 		source
 	};
 	GLint lens[2] = {-1, -1};

@@ -6,8 +6,9 @@
 #include "util.hh"
 namespace rsgame {
 bool verbose = true;
-bool gles = false;
-bool glcore = false;
+static bool gles = false;
+static bool glcore = false;
+const char *shader_prologue = nullptr;
 bool vsync = true;
 bool fullscreen = false;
 SDL_Window* window = nullptr;
@@ -34,14 +35,17 @@ int main(int argc, char** argv)
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+		shader_prologue = "#version 300 es\nprecision mediump float;\n";
 	} else if (glcore) {
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+		shader_prologue = "#version 150 core\n";
 	} else {
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+		shader_prologue = "#version 130\n";
 	}
 	int width = 854, height = 480;
 	window = SDL_CreateWindow("rsgame", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
