@@ -19,6 +19,7 @@ add_executable(rsgame
 	src/level.cc src/level.hh
 	src/tile.cc src/tile.hh
 	src/util.cc src/util.hh
+	src/raycast.cc src/raycast.hh
 )
 target_link_libraries(rsgame PRIVATE SDL2::SDL2 SDL2::SDL2main OpenGL::GL epoxy::epoxy glm::glm PNG::PNG)
 target_compile_features(rsgame PRIVATE cxx_std_17)

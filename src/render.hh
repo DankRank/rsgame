@@ -2,9 +2,11 @@
 #ifndef RSGAME_RENDER
 #define RSGAME_RENDER
 #include "level.hh"
+#include "raycast.hh"
 #include "util.hh"
 namespace rsgame {
 	struct Level;
+	struct RaycastResult;
 	struct RenderChunk {
 		static std::vector<float> data;
 		int x, y, z;
@@ -43,5 +45,6 @@ public:
 	extern GLuint terrain_prog;
 	bool load_shaders();
 	bool load_textures();
+	void raytarget_face(const RaycastResult &r, float *buf);
 }
 #endif

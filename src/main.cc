@@ -3,6 +3,7 @@
 #include "level.hh"
 #include "render.hh"
 #include "tile.hh"
+#include "raycast.hh"
 #include "util.hh"
 namespace rsgame {
 bool verbose = true;
@@ -118,6 +119,15 @@ int main(int argc, char** argv)
 	vec3 pos{0};
 	vec3 look{0};
 
+	GLuint raytarget_va, raytarget_vb;
+	glGenVertexArrays(1, &raytarget_va);
+	glGenBuffers(1, &raytarget_vb);
+	glBindBuffer(GL_ARRAY_BUFFER, raytarget_vb);
+	glBindVertexArray(raytarget_va);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
+	float raytarget_buf[4*3];
+
 #if 0
 	GLuint debug_va, debug_vb;
 	glGenVertexArrays(1, &debug_va);
@@ -212,6 +222,19 @@ int main(int argc, char** argv)
 		viewfrustum.from_viewproj(pos, look, vec3(0, 1, 0), vfov, aspect, near, far);
 		rl->update();
 		rl->draw();
+
+		RaycastResult ray;
+		if (raycast(&level, pos, look, 10., ray)) {
+			raytarget_face(ray, raytarget_buf);
+			glBindBuffer(GL_ARRAY_BUFFER, raytarget_vb);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(float)*4*3, raytarget_buf, GL_STREAM_DRAW);
+			glBindVertexArray(raytarget_va);
+			glDisable(GL_DEPTH_TEST);
+			glVertexAttrib2f(1, 0.f, 0.f);
+			glVertexAttrib1f(2, 0.f);
+			glDrawArrays(GL_LINE_LOOP, 0, 4);
+			glEnable(GL_DEPTH_TEST);
+		}
 
 #if 0
 		glBindBuffer(GL_ARRAY_BUFFER, debug_vb);
