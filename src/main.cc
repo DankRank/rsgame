@@ -145,8 +145,35 @@ int main(int argc, char** argv)
 #endif
 
 	double avg_frame_time = 0;
+	Uint64 unprocessed_ms = 0;
+	Uint64 last_frame = SDL_GetTicks64();
+	bool key_left = false, key_right = false, key_up = false, key_down = false;
+	bool key_w = false, key_s = false, key_a = false, key_d = false;
+	bool key_sp = false, key_shift = false, key_ctrl = false;
+
 	RaycastResult ray;
 	bool ray_valid = false;
+	auto remove_block = [&](){
+		if (ray_valid) {
+			level.set_tile(ray.x, ray.y, ray.z, 0, 0);
+			rl->set_dirty(ray.x, ray.y, ray.z);
+		}
+	};
+	auto place_block = [&](){
+		if (ray_valid) {
+			int x = ray.x, y = ray.y, z = ray.z;
+			switch (ray.f) {
+				case 0: y--; break;
+				case 1: y++; break;
+				case 2: z--; break;
+				case 3: z++; break;
+				case 4: x--; break;
+				case 5: x++; break;
+			}
+			level.set_tile(x, y, z, 35, 0);
+			rl->set_dirty(x, y, z);
+		}
+	};
 	while (is_running) {
 		SDL_Event ev;
 		while (SDL_PollEvent(&ev)) {
@@ -178,23 +205,12 @@ int main(int argc, char** argv)
 					SDL_SetRelativeMouseMode(SDL_TRUE);
 				} else {
 					if (ev.button.button == SDL_BUTTON_LEFT) {
-						level.set_tile(ray.x, ray.y, ray.z, 0, 0);
-						rl->set_dirty(ray.x, ray.y, ray.z);
+						remove_block();
 					} else if (ev.button.button == SDL_BUTTON_RIGHT) {
-						int x = ray.x, y = ray.y, z = ray.z;
-						switch (ray.f) {
-							case 0: y--; break;
-							case 1: y++; break;
-							case 2: z--; break;
-							case 3: z++; break;
-							case 4: x--; break;
-							case 5: x++; break;
-						}
-						level.set_tile(x, y, z, 35, 0);
-						rl->set_dirty(x, y, z);
+						place_block();
 					}
 				}
-			} else if (ev.type == SDL_KEYDOWN) {
+			} else if (ev.type == SDL_KEYDOWN && !ev.key.repeat) {
 				switch (ev.key.keysym.scancode) {
 					case SDL_SCANCODE_ESCAPE:
 					case SDL_SCANCODE_Q:
@@ -207,45 +223,73 @@ int main(int argc, char** argv)
 						fullscreen = !fullscreen;
 						SDL_SetWindowFullscreen(window, fullscreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
 						break;
-					case SDL_SCANCODE_LEFT:
-						yaw += 0.1;
+					case SDL_SCANCODE_RETURN:
+						remove_block();
 						break;
-					case SDL_SCANCODE_RIGHT:
-						yaw -= 0.1;
-						break;
-					case SDL_SCANCODE_UP:
-						pitch += 0.1;
-						if (pitch > 3.1415f/2.f)
-							pitch = 3.1415f/2.f;
-						break;
-					case SDL_SCANCODE_DOWN:
-						pitch -= 0.1;
-						if (pitch < -3.1415f/2.f)
-							pitch = -3.1415f/2.f;
-						break;
-					case SDL_SCANCODE_W:
-						pos += look*.1f;
-						break;
-					case SDL_SCANCODE_S:
-						pos -= look*.1f;
-						break;
-					case SDL_SCANCODE_A:
-						pos -= normalize(cross(look, vec3(0, 1, 0)))*.1f;
-						break;
-					case SDL_SCANCODE_D:
-						pos += normalize(cross(look, vec3(0, 1, 0)))*.1f;
-						break;
-					case SDL_SCANCODE_SPACE:
-						pos += vec3(0, 1, 0)*.1f;
-						break;
-					case SDL_SCANCODE_LSHIFT:
-						pos -= vec3(0, 1, 0)*.1f;
+					case SDL_SCANCODE_BACKSLASH:
+						place_block();
 						break;
 					default:
 						break;
 				}
 			}
+			if (ev.type == SDL_KEYDOWN || ev.type == SDL_KEYUP) {
+				bool down = ev.type == SDL_KEYDOWN;
+				switch (ev.key.keysym.scancode) {
+					case SDL_SCANCODE_LEFT: key_left = down; break;
+					case SDL_SCANCODE_RIGHT: key_right = down; break;
+					case SDL_SCANCODE_UP: key_up = down; break;
+					case SDL_SCANCODE_DOWN: key_down = down; break;
+					case SDL_SCANCODE_W: key_w = down; break;
+					case SDL_SCANCODE_S: key_s = down; break;
+					case SDL_SCANCODE_A: key_a = down; break;
+					case SDL_SCANCODE_D: key_d = down; break;
+					case SDL_SCANCODE_SPACE: key_sp = down; break;
+					case SDL_SCANCODE_LSHIFT: key_shift = down; break;
+					case SDL_SCANCODE_LCTRL: key_ctrl = down; break;
+					default: break;
+				}
+			}
 		}
+		// process input
+		{
+			Uint64 current_frame = SDL_GetTicks64();
+			unprocessed_ms += current_frame - last_frame;
+			last_frame = current_frame;
+			float speed = key_ctrl ? .3f : .15f;
+			float lookspeed = key_ctrl ? .25f : .1f;
+			while (unprocessed_ms > 50) {
+				if (key_left)
+					yaw += lookspeed;
+				if (key_right)
+					yaw -= lookspeed;
+				if (key_up) {
+					pitch += lookspeed;
+					if (pitch > 3.1415f/2.f)
+						pitch = 3.1415f/2.f;
+				}
+				if (key_down) {
+					pitch -= lookspeed;
+					if (pitch < -3.1415f/2.f)
+						pitch = -3.1415f/2.f;
+				}
+				if (key_w)
+					pos += look*speed;
+				if (key_s)
+					pos -= look*speed;
+				if (key_a)
+					pos -= normalize(cross(look, vec3(0, 1, 0)))*speed;
+				if (key_d)
+					pos += normalize(cross(look, vec3(0, 1, 0)))*speed;
+				if (key_sp)
+					pos += vec3(0, 1, 0)*speed;
+				if (key_shift)
+					pos -= vec3(0, 1, 0)*speed;
+				unprocessed_ms -= 50;
+			}
+		}
+
+
 		look = normalize(vec3(-sinf(yaw), 0, -cosf(yaw))*cosf(pitch) + vec3(0, sinf(pitch), 0));
 		mat4 view = glm::lookAt(pos, pos+look, vec3(0, 1, 0));
 		constexpr float vfov = glm::radians(70.f), near = .05f, far = 256.f;
