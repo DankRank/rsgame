@@ -145,25 +145,63 @@ int main(int argc, char** argv)
 #endif
 
 	double avg_frame_time = 0;
+	RaycastResult ray;
+	bool ray_valid = false;
 	while (is_running) {
 		SDL_Event ev;
 		while (SDL_PollEvent(&ev)) {
 			if (ev.type == SDL_QUIT) {
 				is_running = false;
 				break;
-			}
-			if (ev.type == SDL_WINDOWEVENT) {
+			} else if (ev.type == SDL_WINDOWEVENT) {
 				if (ev.window.event == SDL_WINDOWEVENT_SIZE_CHANGED) {
 					width = ev.window.data1;
 					height = ev.window.data2;
 					glViewport(0, 0, width, height);
+				} else if (ev.window.event == SDL_WINDOWEVENT_FOCUS_LOST) {
+					/* NOTE: we can't restore mouse mode on FOCUS_GAINED, because
+					 * on xfwm4 there's a bug where if you alt-tab from relative
+					 * mode, it immediately gives focus back to your window. */
+					SDL_SetRelativeMouseMode(SDL_FALSE);
 				}
-			}
-			if (ev.type == SDL_KEYDOWN) {
+			} else if (ev.type == SDL_MOUSEMOTION) {
+				if (SDL_GetRelativeMouseMode()) {
+					yaw -= ev.motion.xrel * 0.001;
+					pitch -= ev.motion.yrel * 0.001;
+					if (pitch > 3.1415f/2.f)
+						pitch = 3.1415f/2.f;
+					if (pitch < -3.1415f/2.f)
+						pitch = -3.1415f/2.f;
+				}
+			} else if (ev.type == SDL_MOUSEBUTTONDOWN) {
+				if (!SDL_GetRelativeMouseMode()) {
+					SDL_SetRelativeMouseMode(SDL_TRUE);
+				} else {
+					if (ev.button.button == SDL_BUTTON_LEFT) {
+						level.set_tile(ray.x, ray.y, ray.z, 0, 0);
+						rl->set_dirty(ray.x, ray.y, ray.z);
+					} else if (ev.button.button == SDL_BUTTON_RIGHT) {
+						int x = ray.x, y = ray.y, z = ray.z;
+						switch (ray.f) {
+							case 0: y--; break;
+							case 1: y++; break;
+							case 2: z--; break;
+							case 3: z++; break;
+							case 4: x--; break;
+							case 5: x++; break;
+						}
+						level.set_tile(x, y, z, 35, 0);
+						rl->set_dirty(x, y, z);
+					}
+				}
+			} else if (ev.type == SDL_KEYDOWN) {
 				switch (ev.key.keysym.scancode) {
 					case SDL_SCANCODE_ESCAPE:
 					case SDL_SCANCODE_Q:
 						is_running = false;
+						break;
+					case SDL_SCANCODE_F10:
+						SDL_SetRelativeMouseMode((SDL_bool)!SDL_GetRelativeMouseMode());
 						break;
 					case SDL_SCANCODE_F11:
 						fullscreen = !fullscreen;
@@ -223,8 +261,8 @@ int main(int argc, char** argv)
 		rl->update();
 		rl->draw();
 
-		RaycastResult ray;
-		if (raycast(&level, pos, look, 10., ray)) {
+		ray_valid = raycast(&level, pos, look, 10., ray);
+		if (ray_valid) {
 			raytarget_face(ray, raytarget_buf);
 			glBindBuffer(GL_ARRAY_BUFFER, raytarget_vb);
 			glBufferData(GL_ARRAY_BUFFER, sizeof(float)*4*3, raytarget_buf, GL_STREAM_DRAW);
