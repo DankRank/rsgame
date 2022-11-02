@@ -4,8 +4,10 @@
 #include "level.hh"
 namespace rsgame {
 	struct Level;
+	struct AABB;
 	struct RaycastResult {
 		int x, y, z, f;
+		const AABB *aabb;
 	};
 	bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out);
 }

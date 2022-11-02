@@ -33,8 +33,19 @@ namespace rsgame {
  *
  * Repeat this for y and z axes and pick the shortest ray.
  */
-bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out) {
+static bool raycast_collide(vec3 pos, vec3 look, double &maxd, RaycastResult &out, int x, int y, int z, int f, uint8_t id, double d);
+bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out)
+{
 	bool found = false;
+	// check initial block
+	{
+		int xx = (int)floorf(pos.x), yy = (int)floorf(pos.y), zz = (int)floorf(pos.z);
+		uint8_t id = level->get_tile_id(xx, yy, zz);
+		RenderType rt = tiles::render_type[id];
+		if (rt != RenderType::AIR && rt != RenderType::CUBE)
+			if (raycast_collide(pos, look, maxd, out, xx, yy, zz, 0, id, 0))
+				return true;
+	}
 	// along x axis
 	if (look.x != 0) {
 		int dx = look.x >= 0 ? 1 : -1;
@@ -46,12 +57,8 @@ bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out)
 		float dy = ic*look.y;
 		float dz = ic*look.z;
 		while (d < maxd) {
-			if (tiles::render_type[level->get_tile_id(x, (int)floorf(y), (int)floorf(z))] != RenderType::AIR) {
-				out.x = x;
-				out.y = (int)floorf(y);
-				out.z = (int)floorf(z);
-				out.f = dx == 1 ? 4 : 5;
-				maxd = d;
+			int xx = x, yy = (int)floorf(y), zz = (int)floorf(z);
+			if (raycast_collide(pos, look, maxd, out, xx, yy, zz, dx == 1 ? 4 : 5, level->get_tile_id(xx, yy, zz), d)) {
 				found = true;
 				break;
 			}
@@ -69,12 +76,8 @@ bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out)
 		float dx = ic*look.x;
 		float dz = ic*look.z;
 		while (d < maxd) {
-			if (tiles::render_type[level->get_tile_id((int)floorf(x), y, (int)floorf(z))] != RenderType::AIR) {
-				out.x = (int)floorf(x);
-				out.y = y;
-				out.z = (int)floorf(z);
-				out.f = dy == 1 ? 0 : 1;
-				maxd = d;
+			int xx = (int)floorf(x), yy = y, zz = (int)floorf(z);
+			if (raycast_collide(pos, look, maxd, out, xx, yy, zz, dy == 1 ? 0 : 1, level->get_tile_id(xx, yy, zz), d)) {
 				found = true;
 				break;
 			}
@@ -92,12 +95,8 @@ bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out)
 		float dx = ic*look.x;
 		float dy = ic*look.y;
 		while (d < maxd) {
-			if (tiles::render_type[level->get_tile_id((int)floorf(x), (int)floorf(y), z)] != RenderType::AIR) {
-				out.x = (int)floorf(x);
-				out.y = (int)floorf(y);
-				out.z = z;
-				out.f = dz == 1 ? 2 : 3;
-				maxd = d;
+			int xx = (int)floorf(x), yy = (int)floorf(y), zz = z;
+			if (raycast_collide(pos, look, maxd, out, xx, yy, zz, dz == 1 ? 2 : 3, level->get_tile_id(xx, yy, zz), d)) {
 				found = true;
 				break;
 			}
@@ -105,6 +104,61 @@ bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out)
 		}
 	}
 	return found;
+}
+/* Preconditions:
+ * - look ray collides with the full cube
+ * - d < maxd
+ * - pos is outside the full cube
+ * Combination of these conditions mean that checks against CUBE always
+ * succeed. (And AIR always fails regardless of any conditions.
+ *
+ * For blocks with funny shapes, we do ray-AABB intersection:
+ * https://education.siggraph.org/static/HyperGraph/raytrace/rtinter3.htm
+ * From the ray's point of view, an AABB consists of 6 planes, 2 for each axis.
+ * We can sort these planes by their distance along the ray. Along each axis
+ * there will be a near plane and a far plane. We intersect AABB when we have
+ * passed all 3 near planes, but haven't passed any of the far planes yet. So
+ * we find the farthest near plane (fmin) and the nearest far plane (fmax).
+ * If fmax < fmin, there is no intersection. Otherwise, if fmax < 0, the AABB
+ * is intersected by the opposite ray, but not by this one, and if fmin < 0,
+ * the origin is within the AABB (which, for our purposes means no
+ * intersection). Otherwise we have an intersection.
+ */
+inline static bool raycast_collide(vec3 pos, vec3 look, double &maxd, RaycastResult &out, int x, int y, int z, int f, uint8_t id, double d)
+{
+	RenderType rt = tiles::render_type[id];
+	if (rt == RenderType::AIR)
+		return false;
+	if (rt == RenderType::CUBE) {
+		out.x = x, out.y = y, out.z = z, out.f = f;
+		out.aabb = &tiles::get_aabb(rt, id);
+		maxd = d;
+		return true;
+	}
+	const AABB& aabb = tiles::get_aabb(rt, id);
+	using std::min;
+	using std::max;
+	// NOTE: relies on IEEE754 division by zero semantics
+	vec3 ilook = 1.f/look;
+	vec3 pmin = (vec3(x, y, z)+aabb.min-pos)*ilook;
+	vec3 pmax = (vec3(x, y, z)+aabb.max-pos)*ilook;
+	float fmin = max({min(pmin.x, pmax.x), min(pmin.y, pmax.y), min(pmin.z, pmax.z)});
+	float fmax = min({max(pmin.x, pmax.x), max(pmin.y, pmax.y), max(pmin.z, pmax.z)});
+	if (fmin < 0.f || fmax < fmin)
+		return false;
+	if (fmin >= maxd)
+		return true;
+	out.x = x, out.y = y, out.z = z;
+	// find which plane does the distance come from
+	if (fmin == pmin.x) out.f = 4;
+	else if (fmin == pmax.x) out.f = 5;
+	else if (fmin == pmin.y) out.f = 0;
+	else if (fmin == pmax.y) out.f = 1;
+	else if (fmin == pmin.z) out.f = 2;
+	else /*if (fmin == pmax.z)*/ out.f = 3;
+	maxd = fmin;
+	out.aabb = &aabb;
+	return true;
 }
 
 }

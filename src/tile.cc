@@ -3,7 +3,26 @@
 #include "tile.hh"
 #include "render.hh"
 #include "level.hh"
+#include "util.hh"
 namespace rsgame::tiles {
+static const AABB aabb_air     = {{.0f, .0f, .0f}, {.0f, .0f, .0f}};
+static const AABB aabb_cube    = {{.0f, .0f, .0f}, {1.f, 1.f, 1.f}};
+static const AABB aabb_sapling = {{.1f, .0f, .1f}, {.9f, .8f, .9f}};
+static const AABB aabb_flower  = {{.3f, .0f, .3f}, {.7f, .6f, .7f}};
+static const AABB aabb_slab    = {{.0f, .0f, .0f}, {1.f, .5f, 1.f}};
+const AABB &get_aabb(RenderType rt, uint8_t id) {
+	switch (rt) {
+		case RenderType::AIR:
+			return aabb_air;
+		default:
+		case RenderType::CUBE:
+			return aabb_cube;
+		case RenderType::PLANT:
+			return id == 6 ? aabb_sapling : aabb_flower;
+		case RenderType::SLAB:
+			return aabb_slab;
+	}
+}
 RenderType render_type[256] = {RenderType::AIR};
 bool is_opaque[256] = {false};
 static const uint8_t *texture_data[256] = {nullptr};

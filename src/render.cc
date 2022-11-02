@@ -143,6 +143,7 @@ static void push_quad(std::vector<float> &data, vec3 a, vec3 ta, vec3 b, vec3 tb
 }
 void raytarget_face(const RaycastResult &r, float *buf)
 {
+	vec3 aabbd = r.aabb->max - r.aabb->min;
 	// same stuff as in draw_face_basic, but simplified
 	static const vec3 vecs[6][3] = {
 		{ vec3(0, 0, 0), vec3(0,  0, 1), vec3( 1, 0,  0) },
@@ -153,13 +154,13 @@ void raytarget_face(const RaycastResult &r, float *buf)
 		{ vec3(1, 1, 1), vec3(0, -1, 0), vec3( 0, 0, -1) },
 	};
 	vec3 v(r.x, r.y, r.z);
-	v += vecs[r.f][0];
+	v += vecs[r.f][0]*aabbd + r.aabb->min;
 	*buf++ = v.x; *buf++ = v.y; *buf++ = v.z;
-	v += vecs[r.f][1];
+	v += vecs[r.f][1]*aabbd;
 	*buf++ = v.x; *buf++ = v.y; *buf++ = v.z;
-	v += vecs[r.f][2];
+	v += vecs[r.f][2]*aabbd;
 	*buf++ = v.x; *buf++ = v.y; *buf++ = v.z;
-	v -= vecs[r.f][1];
+	v -= vecs[r.f][1]*aabbd;
 	*buf++ = v.x; *buf++ = v.y; *buf++ = v.z;
 }
 static void draw_face_basic(float x0, float y0, float z0, float dx, float dy, float dz, int f, int tex, float ds=1.f, float dt=1.f) {

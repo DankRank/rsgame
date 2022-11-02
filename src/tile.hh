@@ -8,7 +8,9 @@ namespace rsgame {
 		PLANT,
 		SLAB,
 	};
+	struct AABB;
 	namespace tiles {
+		const AABB &get_aabb(RenderType rt, uint8_t id);
 		extern RenderType render_type[256];
 		extern bool is_opaque[256];
 		uint8_t tex(uint8_t id, int face, int data);

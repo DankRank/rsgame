@@ -20,6 +20,7 @@
 #include <unordered_map>
 #include <memory>
 #include <utility>
+#include <algorithm>
 namespace rsgame {
 	using glm::vec3;
 	using glm::mat4;
