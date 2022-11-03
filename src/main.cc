@@ -153,6 +153,7 @@ int main(int argc, char** argv)
 	bool physics_enabled = false;
 	vec3 phys_velxz = vec3(0, 0, 0);
 	float phys_vely = 0.f;
+	bool phys_ground = false;
 
 	RaycastResult ray;
 	bool ray_valid = false;
@@ -305,7 +306,7 @@ int main(int argc, char** argv)
 					if (key_d)
 						want += right;
 					// apply friction
-					if (pos.y == 0) {
+					if (phys_ground) {
 						const float friction = .1;
 						float speed = length(phys_velxz);
 						if (speed)
@@ -321,20 +322,50 @@ int main(int argc, char** argv)
 							phys_velxz += (v + acc < limit ? acc : limit - v)*want;
 						}
 					}
+					// horizontal collision
+					RaycastResult r;
+					for (float shift = 0.f; shift <= 1.5f; shift += .5f)
+						if (raycast(&level, pos-vec3(0, shift, 0), normalize(phys_velxz), .5, r)) {
+							switch (r.f) {
+							case 2: case 3: phys_velxz.z = 0; break;
+							case 4: case 5: phys_velxz.x = 0; break;
+							}
+						}
 					pos += phys_velxz;
 					// gravity
 					if (phys_vely > -1.f)
 						phys_vely -= .1f;
-					if (pos.y > 0 || phys_vely > 0) {
-						pos.y += phys_vely;
-						if (pos.y < 0)
-							pos.y = 0;
+					// vertical collision
+					bool down_collision = false;
+					for (float sx = -.4f; sx <= .4f; sx += .4f)
+						for (float sy = -.4f; sy <= .4f; sy += .4f)
+							if (raycast(&level, pos+vec3(sx, 0, sy), vec3(0, -1, 0), 1.6, r)) {
+								down_collision = true;
+								goto found_collision;
+							}
+				found_collision:
+					if (down_collision) {
+						if (phys_vely < 0) {
+							phys_vely = 0;
+							pos.y = r.y + 2.6f;
+						}
+						phys_ground = true;
+					} else {
+						phys_ground = false;
 					}
-					if (key_sp && pos.y == 0) {
-						float speed = length(phys_velxz);
-						printf("%f\n", speed);
+					if (pos.y <= 1.6f) {
+						phys_vely = 0;
+						phys_ground = true;
+						pos.y = 1.6f;
+					}
+					if (!phys_ground) {
+						pos.y += phys_vely;
+					}
+					if (key_sp && phys_ground) {
+						printf("%f\n", length(phys_velxz));
 						phys_vely = .5f;
 						pos.y += phys_vely;
+						phys_ground = false;
 					}
 				}
 				unprocessed_ms -= 50;
