@@ -9,6 +9,7 @@ namespace rsgame {
 		int x, y, z, f;
 		const AABB *aabb;
 	};
+	extern bool raycast_in_physics;
 	bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out);
 }
 #endif

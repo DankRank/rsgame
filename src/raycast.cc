@@ -3,6 +3,7 @@
 #include "raycast.hh"
 #include "tile.hh"
 namespace rsgame {
+bool raycast_in_physics = false;
 /* Raycasting 101
  * We cast three rays in total, one for each axis. WLOG consider the x axis.
  * First we figure out the point where the look ray intersects a yz plane at
@@ -135,6 +136,8 @@ inline static bool raycast_collide(vec3 pos, vec3 look, double &maxd, RaycastRes
 		maxd = d;
 		return true;
 	}
+	if (raycast_in_physics && rt == RenderType::PLANT)
+		return false;
 	const AABB& aabb = tiles::get_aabb(rt, id);
 	using std::min;
 	using std::max;

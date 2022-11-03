@@ -294,6 +294,7 @@ int main(int argc, char** argv)
 					if (key_shift)
 						pos -= vec3(0, 1, 0)*speed;
 				} else {
+					raycast_in_physics = true;
 					vec3 want = vec3(0, 0, 0);
 					vec3 fwd = normalize(vec3(look.x, 0, look.z));
 					vec3 right = normalize(vec3(-look.z, 0, look.x));
@@ -388,6 +389,7 @@ int main(int argc, char** argv)
 		rl->update();
 		rl->draw();
 
+		raycast_in_physics = false;
 		ray_valid = raycast(&level, pos, look, 10., ray);
 		if (ray_valid) {
 			raytarget_face(ray, raytarget_buf);
