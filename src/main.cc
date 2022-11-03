@@ -150,6 +150,9 @@ int main(int argc, char** argv)
 	bool key_left = false, key_right = false, key_up = false, key_down = false;
 	bool key_w = false, key_s = false, key_a = false, key_d = false;
 	bool key_sp = false, key_shift = false, key_ctrl = false;
+	bool physics_enabled = false;
+	vec3 phys_velxz = vec3(0, 0, 0);
+	float phys_vely = 0.f;
 
 	RaycastResult ray;
 	bool ray_valid = false;
@@ -229,6 +232,9 @@ int main(int argc, char** argv)
 					case SDL_SCANCODE_BACKSLASH:
 						place_block();
 						break;
+					case SDL_SCANCODE_F:
+						physics_enabled = !physics_enabled;
+						break;
 					default:
 						break;
 				}
@@ -273,18 +279,64 @@ int main(int argc, char** argv)
 					if (pitch < -3.1415f/2.f)
 						pitch = -3.1415f/2.f;
 				}
-				if (key_w)
-					pos += look*speed;
-				if (key_s)
-					pos -= look*speed;
-				if (key_a)
-					pos -= normalize(cross(look, vec3(0, 1, 0)))*speed;
-				if (key_d)
-					pos += normalize(cross(look, vec3(0, 1, 0)))*speed;
-				if (key_sp)
-					pos += vec3(0, 1, 0)*speed;
-				if (key_shift)
-					pos -= vec3(0, 1, 0)*speed;
+				if (!physics_enabled) {
+					if (key_w)
+						pos += look*speed;
+					if (key_s)
+						pos -= look*speed;
+					if (key_a)
+						pos -= normalize(cross(look, vec3(0, 1, 0)))*speed;
+					if (key_d)
+						pos += normalize(cross(look, vec3(0, 1, 0)))*speed;
+					if (key_sp)
+						pos += vec3(0, 1, 0)*speed;
+					if (key_shift)
+						pos -= vec3(0, 1, 0)*speed;
+				} else {
+					vec3 want = vec3(0, 0, 0);
+					vec3 fwd = normalize(vec3(look.x, 0, look.z));
+					vec3 right = normalize(vec3(-look.z, 0, look.x));
+					if (key_w)
+						want += fwd;
+					if (key_s)
+						want -= fwd;
+					if (key_a)
+						want -= right;
+					if (key_d)
+						want += right;
+					// apply friction
+					if (pos.y == 0) {
+						const float friction = .1;
+						float speed = length(phys_velxz);
+						if (speed)
+							phys_velxz *= (speed > friction ? speed - friction : 0) / speed;
+					}
+					// apply acceleration
+					if (want != vec3(0, 0, 0)) {
+						const float acc = .1f;
+						const float limit = .1f;
+						want = normalize(want);
+						float v = dot(phys_velxz, want);
+						if (v < limit) {
+							phys_velxz += (v + acc < limit ? acc : limit - v)*want;
+						}
+					}
+					pos += phys_velxz;
+					// gravity
+					if (phys_vely > -1.f)
+						phys_vely -= .1f;
+					if (pos.y > 0 || phys_vely > 0) {
+						pos.y += phys_vely;
+						if (pos.y < 0)
+							pos.y = 0;
+					}
+					if (key_sp && pos.y == 0) {
+						float speed = length(phys_velxz);
+						printf("%f\n", speed);
+						phys_vely = .5f;
+						pos.y += phys_vely;
+					}
+				}
 				unprocessed_ms -= 50;
 			}
 		}
