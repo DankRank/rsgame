@@ -10,18 +10,34 @@ static const AABB aabb_cube    = {{.0f, .0f, .0f}, {1.f, 1.f, 1.f}};
 static const AABB aabb_sapling = {{.1f, .0f, .1f}, {.9f, .8f, .9f}};
 static const AABB aabb_flower  = {{.3f, .0f, .3f}, {.7f, .6f, .7f}};
 static const AABB aabb_slab    = {{.0f, .0f, .0f}, {1.f, .5f, 1.f}};
-const AABB &get_aabb(RenderType rt, uint8_t id) {
+static const AABB aabb_wire    = {{.0f, .0f, .0f}, {1.f, .0625f, 1.f}};
+static const AABB aabb_torch   = {{.35f, .0f, .35f}, {.65f, .6f, .65f}};
+static const AABB aabb_torch1  = {{.35f-.3125f, .0f, .35f}, {.65f-.3125f, .6f, .65f}};
+static const AABB aabb_torch2  = {{.35f+.3125f, .0f, .35f}, {.65f+.3125f, .6f, .65f}};
+static const AABB aabb_torch3  = {{.35f, .0f, .35f-.3125f}, {.65f, .6f, .65f-.3125f}};
+static const AABB aabb_torch4  = {{.35f, .0f, .35f+.3125f}, {.65f, .6f, .65f+.3125f}};
+const AABB &get_aabb(RenderType rt, uint8_t id, uint8_t data) {
 	switch (rt) {
 		case RenderType::AIR:
 			return aabb_air;
-		default:
 		case RenderType::CUBE:
 			return aabb_cube;
 		case RenderType::PLANT:
 			return id == 6 ? aabb_sapling : aabb_flower;
 		case RenderType::SLAB:
 			return aabb_slab;
+		case RenderType::WIRE:
+			return aabb_wire;
+		case RenderType::TORCH:
+			switch (data) {
+				default: return aabb_torch;
+				case 1: return aabb_torch1;
+				case 2: return aabb_torch2;
+				case 3: return aabb_torch3;
+				case 4: return aabb_torch4;
+			}
 	}
+	return aabb_cube;
 }
 RenderType render_type[256] = {RenderType::AIR};
 bool is_opaque[256] = {false};
@@ -42,7 +58,7 @@ uint8_t tex(uint8_t id, int face, int data) {
 	}
 }
 
-static uint8_t tex_buf[105] = {0}, *tex_p = tex_buf;
+static uint8_t tex_buf[113] = {0}, *tex_p = tex_buf;
 
 struct TileBuilder {
 	uint8_t id;
@@ -136,6 +152,10 @@ void init() {
 	TileBuilder(47).tex_grass(uv(3, 2), uv(4, 0), uv(4, 0));
 	TileBuilder(48).tex(uv(4, 2));
 	TileBuilder(49).tex(uv(5, 2));
+	TileBuilder(50).render_as(RenderType::TORCH).tex(uv(0, 5));
+	TileBuilder(55).render_as(RenderType::WIRE).tex(uv(4, 10));
+	TileBuilder(75).render_as(RenderType::TORCH).tex(uv(3, 7));
+	TileBuilder(76).render_as(RenderType::TORCH).tex(uv(3, 6));
 	//fprintf(stderr, "tex_buf: %d bytes used\n", (int)(tex_p-tex_buf));
 }
 void dump() {
@@ -152,6 +172,8 @@ void dump() {
 			case RenderType::CUBE: rtype = "CUBE"; break;
 			case RenderType::PLANT: rtype = "PLANT"; break;
 			case RenderType::SLAB: rtype = "SLAB"; break;
+			case RenderType::WIRE: rtype = "WIRE"; break;
+			case RenderType::TORCH: rtype = "TORCH"; break;
 		}
 		printf("\t\t\"render_type\": \"%s\",\n", rtype);
 		printf("\t\t\"is_opaque\": %s,\n", is_opaque[i] ? "true" : "false");

@@ -78,6 +78,25 @@ Level::Level() {
 	set_tile(10, 13, 10, 35, 13);
 	set_tile(10, 14, 10, 35, 14);
 	set_tile(10, 15, 10, 35, 15);
+
+	for (int i = 0; i <= 15; i++)
+		set_tile(3, 0, i, 35, 0);
+	set_tile(3, 1, 0, 50, 0);
+	set_tile(3, 1, 1, 50, 1);
+	set_tile(3, 1, 2, 50, 2);
+	set_tile(3, 1, 3, 50, 3);
+	set_tile(3, 1, 4, 50, 4);
+	set_tile(3, 1, 5, 75, 0);
+	set_tile(3, 1, 6, 75, 1);
+	set_tile(3, 1, 7, 75, 2);
+	set_tile(3, 1, 8, 75, 3);
+	set_tile(3, 1, 9, 75, 4);
+	set_tile(3, 1, 10, 76, 0);
+	set_tile(3, 1, 11, 76, 1);
+	set_tile(3, 1, 12, 76, 2);
+	set_tile(3, 1, 13, 76, 3);
+	set_tile(3, 1, 14, 76, 4);
+	set_tile(3, 1, 15, 55, 0);
 }
 uint8_t Level::get_tile_id(int x, int y, int z) {
 	if (x < 0 || x > xsize-1 || z < 0 || z > zsize-1 || y < 0 || y > 127)

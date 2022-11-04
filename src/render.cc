@@ -300,7 +300,37 @@ void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int 
 			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 4, tiles::tex(id, 4, data), 1.f, .5f);
 		if (!tiles::is_opaque[level->get_tile_id(x+1, y, z)])
 			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 5, tiles::tex(id, 5, data), 1.f, .5f);
-
+		break;
+	case RenderType::WIRE:
+		draw_face_basic(x, y-.9375f, z, 1.f, 1.f, 1.f, 1, tiles::tex(id, 1, data));
+		break;
+	case RenderType::TORCH:
+		vec3 svec;
+		switch (data) {
+			default: svec = vec3(.0f, .0f, .0f); break;
+			case 1: svec = vec3(-.3125f, .0f, .0f); break;
+			case 2: svec = vec3(.3125f, .0f, .0f); break;
+			case 3: svec = vec3(.0f, .0f, -.3125f); break;
+			case 4: svec = vec3(.0f, .0f, .3125f); break;
+		}
+		{
+			int tex = tiles::tex(id, 1, data);
+			float s = tex%16/16.f;
+			float t = tex/16/16.f;
+			vec3 ta(s+7/256.f, t+6/256.f,  1.f);
+			vec3 tb(s+7/256.f, t+8/256.f, 1.f);
+			vec3 tc(s+9/256.f, t+8/256.f, 1.f);
+			vec3 td(s+9/256.f, t+6/256.f,  1.f);
+			vec3 a = vec3(x+7/16.f, y+10/16.f, z+7/16.f) + svec;
+			vec3 b = vec3(x+7/16.f, y+10/16.f, z+9/16.f) + svec;
+			vec3 c = vec3(x+9/16.f, y+10/16.f, z+9/16.f) + svec;
+			vec3 d = vec3(x+9/16.f, y+10/16.f, z+7/16.f) + svec;
+			push_quad(RenderChunk::data, a, ta, b, tb, c, tc, d, td);
+		}
+		draw_face_basic(x+svec.x, y, z+svec.z+.4375f, 1.f, 1.f, 1.f, 2, tiles::tex(id, 2, data));
+		draw_face_basic(x+svec.x, y, z+svec.z-.4375f, 1.f, 1.f, 1.f, 3, tiles::tex(id, 3, data));
+		draw_face_basic(x+svec.x+.4375f, y, z+svec.z, 1.f, 1.f, 1.f, 4, tiles::tex(id, 4, data));
+		draw_face_basic(x+svec.x-.4375f, y, z+svec.z, 1.f, 1.f, 1.f, 5, tiles::tex(id, 5, data));
 		break;
 	}
 

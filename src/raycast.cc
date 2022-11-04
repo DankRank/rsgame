@@ -34,7 +34,7 @@ bool raycast_in_physics = false;
  *
  * Repeat this for y and z axes and pick the shortest ray.
  */
-static bool raycast_collide(vec3 pos, vec3 look, double &maxd, RaycastResult &out, int x, int y, int z, int f, uint8_t id, double d);
+static bool raycast_collide(vec3 pos, vec3 look, double &maxd, RaycastResult &out, int x, int y, int z, int f, uint8_t id, uint8_t data, double d);
 bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out)
 {
 	bool found = false;
@@ -44,7 +44,7 @@ bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out)
 		uint8_t id = level->get_tile_id(xx, yy, zz);
 		RenderType rt = tiles::render_type[id];
 		if (rt != RenderType::AIR && rt != RenderType::CUBE)
-			if (raycast_collide(pos, look, maxd, out, xx, yy, zz, 0, id, 0))
+			if (raycast_collide(pos, look, maxd, out, xx, yy, zz, 0, id, level->get_tile_meta(xx, yy, zz), 0))
 				return true;
 	}
 	// along x axis
@@ -59,7 +59,8 @@ bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out)
 		float dz = ic*look.z;
 		while (d < maxd) {
 			int xx = x, yy = (int)floorf(y), zz = (int)floorf(z);
-			if (raycast_collide(pos, look, maxd, out, xx, yy, zz, dx == 1 ? 4 : 5, level->get_tile_id(xx, yy, zz), d)) {
+			if (raycast_collide(pos, look, maxd, out, xx, yy, zz, dx == 1 ? 4 : 5,
+					level->get_tile_id(xx, yy, zz), level->get_tile_meta(xx, yy, zz), d)) {
 				found = true;
 				break;
 			}
@@ -78,7 +79,8 @@ bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out)
 		float dz = ic*look.z;
 		while (d < maxd) {
 			int xx = (int)floorf(x), yy = y, zz = (int)floorf(z);
-			if (raycast_collide(pos, look, maxd, out, xx, yy, zz, dy == 1 ? 0 : 1, level->get_tile_id(xx, yy, zz), d)) {
+			if (raycast_collide(pos, look, maxd, out, xx, yy, zz, dy == 1 ? 0 : 1,
+					level->get_tile_id(xx, yy, zz), level->get_tile_meta(xx, yy, zz), d)) {
 				found = true;
 				break;
 			}
@@ -97,7 +99,8 @@ bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out)
 		float dy = ic*look.y;
 		while (d < maxd) {
 			int xx = (int)floorf(x), yy = (int)floorf(y), zz = z;
-			if (raycast_collide(pos, look, maxd, out, xx, yy, zz, dz == 1 ? 2 : 3, level->get_tile_id(xx, yy, zz), d)) {
+			if (raycast_collide(pos, look, maxd, out, xx, yy, zz, dz == 1 ? 2 : 3,
+					level->get_tile_id(xx, yy, zz), level->get_tile_meta(xx, yy, zz), d)) {
 				found = true;
 				break;
 			}
@@ -125,20 +128,27 @@ bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out)
  * the origin is within the AABB (which, for our purposes means no
  * intersection). Otherwise we have an intersection.
  */
-inline static bool raycast_collide(vec3 pos, vec3 look, double &maxd, RaycastResult &out, int x, int y, int z, int f, uint8_t id, double d)
+inline static bool raycast_collide(vec3 pos, vec3 look, double &maxd, RaycastResult &out, int x, int y, int z, int f, uint8_t id, uint8_t data, double d)
 {
 	RenderType rt = tiles::render_type[id];
 	if (rt == RenderType::AIR)
 		return false;
 	if (rt == RenderType::CUBE) {
 		out.x = x, out.y = y, out.z = z, out.f = f;
-		out.aabb = &tiles::get_aabb(rt, id);
+		out.aabb = &tiles::get_aabb(rt, id, data);
 		maxd = d;
 		return true;
 	}
-	if (raycast_in_physics && rt == RenderType::PLANT)
-		return false;
-	const AABB& aabb = tiles::get_aabb(rt, id);
+	if (raycast_in_physics)
+		switch (rt) {
+			case RenderType::PLANT:
+			case RenderType::WIRE:
+			case RenderType::TORCH:
+				return false;
+			default:
+				break;
+		}
+	const AABB& aabb = tiles::get_aabb(rt, id, data);
 	using std::min;
 	using std::max;
 	// NOTE: relies on IEEE754 division by zero semantics

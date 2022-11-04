@@ -154,6 +154,7 @@ int main(int argc, char** argv)
 	vec3 phys_velxz = vec3(0, 0, 0);
 	float phys_vely = 0.f;
 	bool phys_ground = false;
+	uint8_t id_in_hand = 35;
 
 	RaycastResult ray;
 	bool ray_valid = false;
@@ -174,7 +175,16 @@ int main(int argc, char** argv)
 				case 4: x--; break;
 				case 5: x++; break;
 			}
-			level.set_tile(x, y, z, 35, 0);
+			uint8_t data = 0;
+			if (tiles::render_type[id_in_hand] == RenderType::TORCH) {
+				switch (ray.f) {
+					case 2: data = 4; break;
+					case 3: data = 3; break;
+					case 4: data = 2; break;
+					case 5: data = 1; break;
+				}
+			}
+			level.set_tile(x, y, z, id_in_hand, data);
 			rl->set_dirty(x, y, z);
 		}
 	};
@@ -236,6 +246,9 @@ int main(int argc, char** argv)
 					case SDL_SCANCODE_F:
 						physics_enabled = !physics_enabled;
 						break;
+					case SDL_SCANCODE_1: id_in_hand = 35; break;
+					case SDL_SCANCODE_2: id_in_hand = 55; break;
+					case SDL_SCANCODE_3: id_in_hand = 76; break;
 					default:
 						break;
 				}
