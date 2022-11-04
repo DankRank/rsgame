@@ -163,7 +163,7 @@ void raytarget_face(const RaycastResult &r, float *buf)
 	v -= vecs[r.f][1]*aabbd;
 	*buf++ = v.x; *buf++ = v.y; *buf++ = v.z;
 }
-static void draw_face_basic(float x0, float y0, float z0, float dx, float dy, float dz, int f, int tex, float ds=1.f, float dt=1.f) {
+static void draw_face_basic(float x0, float y0, float z0, float dx, float dy, float dz, int f, int tex, float ds=1.f, float dt=1.f, bool spin = false, float ss = 0.f, float st = 0.f) {
 	// verticies are defined in the texture order:
 	// s,t     s+1,t
 	//  A <------ D
@@ -231,10 +231,13 @@ static void draw_face_basic(float x0, float y0, float z0, float dx, float dy, fl
 	vec3 ta,tb,tc,td;
 	float s = tex%16/16.f;
 	float t = tex/16/16.f;
-	ta = vec3(s        , t        , light);
-	tb = vec3(s        , t+dt/16.f, light);
-	tc = vec3(s+ds/16.f, t+dt/16.f, light);
-	td = vec3(s+ds/16.f, t        , light);
+	ta = vec3(s+ss/16.f        , t+st/16.f        , light);
+	tb = vec3(s+ss/16.f        , t+st/16.f+dt/16.f, light);
+	tc = vec3(s+ss/16.f+ds/16.f, t+st/16.f+dt/16.f, light);
+	td = vec3(s+ss/16.f+ds/16.f, t+st/16.f        , light);
+	if (spin) {
+		td = std::exchange(ta, std::exchange(tb, std::exchange(tc, td)));
+	}
 	if (f != 0) {
 		push_quad(RenderChunk::data, a, ta, b, tb, c, tc, d, td);
 	} else {
@@ -301,9 +304,63 @@ void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int 
 		if (!tiles::is_opaque[level->get_tile_id(x+1, y, z)])
 			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 5, tiles::tex(id, 5, data), 1.f, .5f);
 		break;
-	case RenderType::WIRE:
-		draw_face_basic(x, y-.9375f, z, 1.f, 1.f, 1.f, 1, tiles::tex(id, 1, data));
+	case RenderType::WIRE: {
+		bool pinched = tiles::is_opaque[level->get_tile_id(x, y+1, z)];
+		bool mxo = tiles::is_opaque[level->get_tile_id(x-1, y, z)];
+		bool pxo = tiles::is_opaque[level->get_tile_id(x+1, y, z)];
+		bool mzo = tiles::is_opaque[level->get_tile_id(x, y, z-1)];
+		bool pzo = tiles::is_opaque[level->get_tile_id(x, y, z+1)];
+		bool mx = tiles::is_power_source[level->get_tile_id(x-1, y, z)]
+			|| (!mxo     && tiles::is_power_source[level->get_tile_id(x-1, y-1, z)])
+			|| (!pinched && tiles::is_power_source[level->get_tile_id(x-1, y+1, z)]);
+		bool px = tiles::is_power_source[level->get_tile_id(x+1, y, z)]
+			|| (!pxo     && tiles::is_power_source[level->get_tile_id(x+1, y-1, z)])
+			|| (!pinched && tiles::is_power_source[level->get_tile_id(x+1, y+1, z)]);
+		bool mz = tiles::is_power_source[level->get_tile_id(x, y, z-1)]
+			|| (!mzo     && tiles::is_power_source[level->get_tile_id(x, y-1, z-1)])
+			|| (!pinched && tiles::is_power_source[level->get_tile_id(x, y+1, z-1)]);
+		bool pz = tiles::is_power_source[level->get_tile_id(x, y, z+1)]
+			|| (!pzo     && tiles::is_power_source[level->get_tile_id(x, y-1, z+1)])
+			|| (!pinched && tiles::is_power_source[level->get_tile_id(x, y+1, z+1)]);
+		int tex = tiles::tex(id, 1, data);
+		bool straight = false;
+		bool spin = false;
+		if ((mx || px) && !mz && !pz) {
+			straight = true;
+		} else if ((mz || pz) && !mx && !px) {
+			straight = true;
+			spin = true;
+		}
+		float sx = .0f, sz = .0f;
+		float dx = 1.f, dz = 1.f;
+		if (!straight && (mx || px || mz || pz)) {
+			// clip T- and L-intersections
+			if (!mx) {
+				dx -= .3125f;
+				sx += .3125f;
+			}
+			if (!px)
+				dx -= .3125f;
+			if (!mz) {
+				dz -= .3125f;
+				sz += .3125f;
+			}
+			if (!pz)
+				dz -= .3125f;
+		}
+		draw_face_basic(x+sx, y-.9375f, z+sz, dx, 1.f, dz, 1, tex + (int)straight, dx, dz, spin, sx, sz);
+		if (!pinched) {
+			if (mxo && level->get_tile_id(x-1, y+1, z) == 55)
+				draw_face_basic(x-.9375f, y, z, 1.f, 1.f, 1.f, 5, tex+1, 1.f, 1.f, true);
+			if (pxo && level->get_tile_id(x+1, y+1, z) == 55)
+				draw_face_basic(x+.9375f, y, z, 1.f, 1.f, 1.f, 4, tex+1, 1.f, 1.f, true);
+			if (mzo && level->get_tile_id(x, y+1, z-1) == 55)
+				draw_face_basic(x, y, z-.9375f, 1.f, 1.f, 1.f, 3, tex+1, 1.f, 1.f, true);
+			if (pzo && level->get_tile_id(x, y+1, z+1) == 55)
+				draw_face_basic(x, y, z+.9375f, 1.f, 1.f, 1.f, 2, tex+1, 1.f, 1.f, true);
+		}
 		break;
+	}
 	case RenderType::TORCH:
 		vec3 svec;
 		switch (data) {

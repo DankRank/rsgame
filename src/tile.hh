@@ -15,6 +15,7 @@ namespace rsgame {
 		const AABB &get_aabb(RenderType rt, uint8_t id, uint8_t data);
 		extern RenderType render_type[256];
 		extern bool is_opaque[256];
+		extern bool is_power_source[256];
 		uint8_t tex(uint8_t id, int face, int data);
 		void init();
 		void dump();

@@ -41,6 +41,7 @@ const AABB &get_aabb(RenderType rt, uint8_t id, uint8_t data) {
 }
 RenderType render_type[256] = {RenderType::AIR};
 bool is_opaque[256] = {false};
+bool is_power_source[256] = {false};
 static const uint8_t *texture_data[256] = {nullptr};
 uint8_t tex(uint8_t id, int face, int data) {
 	const uint8_t *p = texture_data[id];
@@ -111,6 +112,10 @@ public:
 		is_opaque[id] = false;
 		return *this;
 	}
+	TileBuilder &power_source() {
+		is_power_source[id] = true;
+		return *this;
+	}
 };
 static constexpr uint8_t uv(int x, int y) { return y*16 + x; }
 void init() {
@@ -153,9 +158,9 @@ void init() {
 	TileBuilder(48).tex(uv(4, 2));
 	TileBuilder(49).tex(uv(5, 2));
 	TileBuilder(50).render_as(RenderType::TORCH).tex(uv(0, 5));
-	TileBuilder(55).render_as(RenderType::WIRE).tex(uv(4, 10));
-	TileBuilder(75).render_as(RenderType::TORCH).tex(uv(3, 7));
-	TileBuilder(76).render_as(RenderType::TORCH).tex(uv(3, 6));
+	TileBuilder(55).render_as(RenderType::WIRE).power_source().tex(uv(4, 10));
+	TileBuilder(75).render_as(RenderType::TORCH).power_source().tex(uv(3, 7));
+	TileBuilder(76).render_as(RenderType::TORCH).power_source().tex(uv(3, 6));
 	//fprintf(stderr, "tex_buf: %d bytes used\n", (int)(tex_p-tex_buf));
 }
 void dump() {
@@ -177,6 +182,7 @@ void dump() {
 		}
 		printf("\t\t\"render_type\": \"%s\",\n", rtype);
 		printf("\t\t\"is_opaque\": %s,\n", is_opaque[i] ? "true" : "false");
+		printf("\t\t\"is_power_source\": %s,\n", is_power_source[i] ? "true" : "false");
 		printf("\t\t\"texture_data\": [");
 		if (texture_data[i]) {
 			for (int j = 1; j <= texture_data[i][0]; j++) {
