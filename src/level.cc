@@ -137,7 +137,7 @@ void Level::on_tick() {
 		if (it->target_tick > tick)
 			break;
 		auto u = *it;
-		scheduled_blocks.erase(*it);
+		scheduled_tiles.erase(*it);
 		scheduled_updates.erase(it);
 		if (u.id == get_tile_id(u.x, u.y, u.z))
 			on_block_scheduled_update(u.x, u.y, u.z, u.id);
@@ -149,10 +149,10 @@ void Level::schedule_update(int x, int y, int z, long when) {
 	uint8_t id = get_tile_id(x, y, z);
 	ScheduledUpdate u;
 	u.x = x, u.y = y, u.z = z, u.id = id;
-	if (scheduled_blocks.find(u) == scheduled_blocks.end()) {
+	if (scheduled_tiles.find(u) == scheduled_tiles.end()) {
 		u.target_tick = when;
 		u.insertion_order = scheduled_update_counter++;
-		scheduled_blocks.insert(u);
+		scheduled_tiles.insert(u);
 		scheduled_updates.insert(u);
 	}
 }

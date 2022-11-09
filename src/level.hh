@@ -11,13 +11,18 @@ namespace rsgame {
 		long target_tick;
 		long insertion_order;
 	};
-	struct ScheduledUpdateLessSpace {
+	struct ScheduledUpdateHashSpace {
+		constexpr size_t operator()(const ScheduledUpdate &u) const {
+			size_t hash = u.x;
+			hash ^= u.y + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+			hash ^= u.z + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+			hash ^= u.id + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+			return hash;
+		}
+	};
+	struct ScheduledUpdateEqualSpace {
 		constexpr bool operator()(const ScheduledUpdate &lhs, const ScheduledUpdate &rhs) const {
-			return
-				lhs.x < rhs.x || lhs.x == rhs.x && (
-				lhs.y < rhs.y || lhs.y == rhs.y && (
-				lhs.z < rhs.z || lhs.z == rhs.z && (
-				lhs.id < rhs.id || lhs.id == rhs.id)));
+			return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.id == rhs.id;
 		}
 	};
 	struct ScheduledUpdateLessTime {
@@ -38,8 +43,7 @@ namespace rsgame {
 		long tick;
 		void on_tick();
 	private:
-		// TODO: scheduled_blocks could be an unordered_set
-		std::set<ScheduledUpdate, ScheduledUpdateLessSpace> scheduled_blocks;
+		std::unordered_set<ScheduledUpdate, ScheduledUpdateHashSpace, ScheduledUpdateEqualSpace> scheduled_tiles;
 		std::set<ScheduledUpdate, ScheduledUpdateLessTime> scheduled_updates;
 		long scheduled_update_counter = 0;
 	public:
