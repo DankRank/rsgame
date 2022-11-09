@@ -96,6 +96,7 @@ int main(int argc, char** argv)
 	for (int i = 0; i < level.xsize>>4; i++)
 		for (int j = 0; j < level.zsize>>4; j++)
 			rl->on_load_chunk(i, j);
+	level.rl = rl;
 
 	fprintf(stderr, "Updating chunks...\n");
 	{
@@ -155,13 +156,15 @@ int main(int argc, char** argv)
 	float phys_vely = 0.f;
 	bool phys_ground = false;
 	uint8_t id_in_hand = 35;
+	uint8_t data_in_hand = 1;
 
 	RaycastResult ray;
 	bool ray_valid = false;
 	auto remove_block = [&](){
 		if (ray_valid) {
+			uint8_t old_id = level.get_tile_id(ray.x, ray.y, ray.z);
 			level.set_tile(ray.x, ray.y, ray.z, 0, 0);
-			rl->set_dirty(ray.x, ray.y, ray.z);
+			level.on_block_remove(ray.x, ray.y, ray.z, old_id);
 		}
 	};
 	auto place_block = [&](){
@@ -175,17 +178,18 @@ int main(int argc, char** argv)
 				case 4: x--; break;
 				case 5: x++; break;
 			}
-			uint8_t data = 0;
+			uint8_t data = data_in_hand;
 			if (tiles::render_type[id_in_hand] == RenderType::TORCH) {
 				switch (ray.f) {
 					case 2: data = 4; break;
 					case 3: data = 3; break;
 					case 4: data = 2; break;
 					case 5: data = 1; break;
+					default: data = 5; break;
 				}
 			}
 			level.set_tile(x, y, z, id_in_hand, data);
-			rl->set_dirty(x, y, z);
+			level.on_block_add(x, y, z, id_in_hand);
 		}
 	};
 	while (is_running) {
@@ -246,9 +250,10 @@ int main(int argc, char** argv)
 					case SDL_SCANCODE_F:
 						physics_enabled = !physics_enabled;
 						break;
-					case SDL_SCANCODE_1: id_in_hand = 35; break;
-					case SDL_SCANCODE_2: id_in_hand = 55; break;
-					case SDL_SCANCODE_3: id_in_hand = 76; break;
+					case SDL_SCANCODE_1: id_in_hand = 35; data_in_hand = 1; break;
+					case SDL_SCANCODE_2: id_in_hand = 55; data_in_hand = 0; break;
+					case SDL_SCANCODE_3: id_in_hand = 76; data_in_hand = 0; break;
+					case SDL_SCANCODE_L: pos = vec3(33.f, 2.f, 32.f); break;
 					default:
 						break;
 				}
@@ -382,6 +387,7 @@ int main(int argc, char** argv)
 						phys_ground = false;
 					}
 				}
+				level.on_tick();
 				unprocessed_ms -= 50;
 			}
 		}

@@ -15,7 +15,9 @@
 #include <glm/mat4x4.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/hash.hpp>
 #include <vector>
+#include <set>
 #include <unordered_set>
 #include <unordered_map>
 #include <memory>
