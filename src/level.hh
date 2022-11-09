@@ -10,27 +10,27 @@ namespace rsgame {
 		uint8_t id;
 		long target_tick;
 		long insertion_order;
-	};
-	struct ScheduledUpdateHashSpace {
-		constexpr size_t operator()(const ScheduledUpdate &u) const {
-			size_t hash = u.x;
-			hash ^= u.y + 0x9e3779b9 + (hash << 6) + (hash >> 2);
-			hash ^= u.z + 0x9e3779b9 + (hash << 6) + (hash >> 2);
-			hash ^= u.id + 0x9e3779b9 + (hash << 6) + (hash >> 2);
-			return hash;
-		}
-	};
-	struct ScheduledUpdateEqualSpace {
-		constexpr bool operator()(const ScheduledUpdate &lhs, const ScheduledUpdate &rhs) const {
-			return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.id == rhs.id;
-		}
-	};
-	struct ScheduledUpdateLessTime {
-		constexpr bool operator()(const ScheduledUpdate &lhs, const ScheduledUpdate &rhs) const {
-			return
-				lhs.target_tick < rhs.target_tick || lhs.target_tick == rhs.target_tick && (
-				lhs.insertion_order < rhs.insertion_order || lhs.insertion_order == rhs.insertion_order);
-		}
+		struct HashSpace {
+			constexpr size_t operator()(const ScheduledUpdate &u) const {
+				size_t hash = u.x;
+				hash ^= u.y + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+				hash ^= u.z + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+				hash ^= u.id + 0x9e3779b9 + (hash << 6) + (hash >> 2);
+				return hash;
+			}
+		};
+		struct EqualSpace {
+			constexpr bool operator()(const ScheduledUpdate &lhs, const ScheduledUpdate &rhs) const {
+				return lhs.x == rhs.x && lhs.y == rhs.y && lhs.z == rhs.z && lhs.id == rhs.id;
+			}
+		};
+		struct LessTime {
+			constexpr bool operator()(const ScheduledUpdate &lhs, const ScheduledUpdate &rhs) const {
+				return
+					lhs.target_tick < rhs.target_tick || lhs.target_tick == rhs.target_tick && (
+					lhs.insertion_order < rhs.insertion_order || lhs.insertion_order == rhs.insertion_order);
+			}
+		};
 	};
 	struct Level {
 		Level();
@@ -43,8 +43,8 @@ namespace rsgame {
 		long tick;
 		void on_tick();
 	private:
-		std::unordered_set<ScheduledUpdate, ScheduledUpdateHashSpace, ScheduledUpdateEqualSpace> scheduled_tiles;
-		std::set<ScheduledUpdate, ScheduledUpdateLessTime> scheduled_updates;
+		std::unordered_set<ScheduledUpdate, ScheduledUpdate::HashSpace, ScheduledUpdate::EqualSpace> scheduled_tiles;
+		std::set<ScheduledUpdate, ScheduledUpdate::LessTime> scheduled_updates;
 		long scheduled_update_counter = 0;
 	public:
 		void schedule_update(int x, int y, int z, long when);
