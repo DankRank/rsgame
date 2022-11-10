@@ -44,6 +44,8 @@ public:
 	};
 	extern GLuint terrain_prog;
 	extern GLuint flat_prog;
+	void init_raytarget();
+	void draw_raytarget(const RaycastResult &ray);
 	void init_hud();
 	void draw_hud(int width, int height);
 	bool load_shaders();

@@ -120,14 +120,7 @@ int main(int argc, char** argv)
 	vec3 pos{0};
 	vec3 look{0};
 
-	GLuint raytarget_va, raytarget_vb;
-	glGenVertexArrays(1, &raytarget_va);
-	glGenBuffers(1, &raytarget_vb);
-	glBindBuffer(GL_ARRAY_BUFFER, raytarget_vb);
-	glBindVertexArray(raytarget_va);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
-	float raytarget_buf[4*3];
+	init_raytarget();
 	init_hud();
 
 #if 0
@@ -411,17 +404,8 @@ int main(int argc, char** argv)
 
 		raycast_in_physics = false;
 		ray_valid = raycast(&level, pos, look, 10., ray);
-		if (ray_valid) {
-			raytarget_face(ray, raytarget_buf);
-			glBindBuffer(GL_ARRAY_BUFFER, raytarget_vb);
-			glBufferData(GL_ARRAY_BUFFER, sizeof(float)*4*3, raytarget_buf, GL_STREAM_DRAW);
-			glBindVertexArray(raytarget_va);
-			glDisable(GL_DEPTH_TEST);
-			glVertexAttrib2f(1, 0.f, 0.f);
-			glVertexAttrib1f(2, 0.f);
-			glDrawArrays(GL_LINE_LOOP, 0, 4);
-			glEnable(GL_DEPTH_TEST);
-		}
+		if (ray_valid)
+			draw_raytarget(ray);
 
 		draw_hud(width, height);
 #if 0

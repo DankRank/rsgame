@@ -140,7 +140,31 @@ void RenderLevel::draw() {
 		//	printf("check %i failed\n", i);
 	}
 }
+static GLuint raytarget_va, raytarget_vb;
 static GLuint crosshair_va, crosshair_vb;
+void init_raytarget()
+{
+	glGenVertexArrays(1, &raytarget_va);
+	glGenBuffers(1, &raytarget_vb);
+	glBindBuffer(GL_ARRAY_BUFFER, raytarget_vb);
+	glBindVertexArray(raytarget_va);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
+}
+void draw_raytarget(const RaycastResult &ray)
+{
+	float raytarget_buf[4*3];
+	raytarget_face(ray, raytarget_buf);
+	glUseProgram(flat_prog);
+	glUniformMatrix4fv(0, 1, GL_FALSE, value_ptr(viewproj));
+	glBindBuffer(GL_ARRAY_BUFFER, raytarget_vb);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*4*3, raytarget_buf, GL_STREAM_DRAW);
+	glBindVertexArray(raytarget_va);
+	glDisable(GL_DEPTH_TEST);
+	glVertexAttrib1f(1, 0.f);
+	glDrawArrays(GL_LINE_LOOP, 0, 4);
+	glEnable(GL_DEPTH_TEST);
+}
 void init_hud()
 {
 	glGenVertexArrays(1, &crosshair_va);
