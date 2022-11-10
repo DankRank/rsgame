@@ -43,6 +43,9 @@ public:
 		RenderLevel &operator=(const RenderLevel&) =delete;
 	};
 	extern GLuint terrain_prog;
+	extern GLuint flat_prog;
+	void init_hud();
+	void draw_hud(int width, int height);
 	bool load_shaders();
 	bool load_textures();
 	void raytarget_face(const RaycastResult &r, float *buf);

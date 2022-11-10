@@ -22,6 +22,7 @@ namespace rsgame {
 
 	// stuff defined in main.cc
 	extern bool verbose;
+	extern bool gles;
 	extern const char *shader_prologue;
 	extern mat4 viewproj;
 	extern Frustum viewfrustum;

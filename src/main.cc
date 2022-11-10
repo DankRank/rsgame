@@ -7,7 +7,7 @@
 #include "util.hh"
 namespace rsgame {
 bool verbose = true;
-static bool gles = false;
+bool gles = false;
 static bool glcore = false;
 const char *shader_prologue = nullptr;
 bool vsync = true;
@@ -128,6 +128,7 @@ int main(int argc, char** argv)
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
 	float raytarget_buf[4*3];
+	init_hud();
 
 #if 0
 	GLuint debug_va, debug_vb;
@@ -422,6 +423,7 @@ int main(int argc, char** argv)
 			glEnable(GL_DEPTH_TEST);
 		}
 
+		draw_hud(width, height);
 #if 0
 		glBindBuffer(GL_ARRAY_BUFFER, debug_vb);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(float)*debug_buf.size(), debug_buf.data(), GL_STREAM_DRAW);

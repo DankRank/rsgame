@@ -4,9 +4,11 @@
 #include <epoxy/gl.h>
 namespace rsgame {
 GLuint terrain_prog = 0;
+GLuint flat_prog = 0;
 static GLuint terrain_u_viewproj = 0;
 static GLuint terrain_u_tex = 0;
 static GLuint terrain_tex = 0;
+static GLuint flat_u_viewproj = 0;
 
 std::vector<float> RenderChunk::data;
 RenderChunk::RenderChunk(int x, int y, int z) :x(x), y(y), z(z) {
@@ -137,6 +139,52 @@ void RenderLevel::draw() {
 		//else
 		//	printf("check %i failed\n", i);
 	}
+}
+static GLuint crosshair_va, crosshair_vb;
+void init_hud()
+{
+	glGenVertexArrays(1, &crosshair_va);
+	glGenBuffers(1, &crosshair_vb);
+	glBindBuffer(GL_ARRAY_BUFFER, crosshair_vb);
+	glBindVertexArray(crosshair_va);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*)0);
+	float crosshair_buf[14*2] = {
+		 0,  0,
+		 9,  1,
+		 1,  1,
+		 1,  9,
+		-1,  9,
+		-1,  1,
+		-9,  1,
+		-9, -1,
+		-1, -1,
+		-1, -9,
+		 1, -9,
+		 1, -1,
+		 9, -1,
+		 9,  1,
+	};
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*14*2, crosshair_buf, GL_STREAM_DRAW);
+}
+void draw_hud(int width, int height)
+{
+	glUseProgram(flat_prog);
+	mat4 m(1.f);
+	m[0][0] = 5*.5f/width;
+	m[1][1] = 5*.5f/height;
+	glUniformMatrix4fv(flat_u_viewproj, 1, GL_FALSE, value_ptr(m));
+	glBindVertexArray(crosshair_va);
+	glDisable(GL_DEPTH_TEST);
+	/* this makes the blend function s(1-d) + (1-s)d
+	 * s=0: d
+	 * s=1: 1-d */
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
+	glVertexAttrib1f(1, 1.f);
+	glDrawArrays(GL_TRIANGLE_FAN, 0, 14);
+	glDisable(GL_BLEND);
+	glEnable(GL_DEPTH_TEST);
 }
 static void push_quad(std::vector<float> &data, vec3 a, vec3 ta, vec3 b, vec3 tb, vec3 c, vec3 tc, vec3 d, vec3 td) {
 	data << a << ta << b << tb << c << tc << a << ta << c << tc << d << td;
@@ -414,7 +462,18 @@ bool load_shaders() {
 		terrain_u_viewproj = glGetUniformLocation(terrain_prog, "u_viewproj");
 		terrain_u_tex = glGetUniformLocation(terrain_prog, "u_tex");
 	}
-	return !!terrain_prog;
+	vs = load_shader(GL_VERTEX_SHADER, "assets/flat.vert");
+	fs = load_shader(GL_FRAGMENT_SHADER, "assets/flat.frag");
+	if (vs && fs) {
+		flat_prog = create_program(vs, fs);
+		glBindAttribLocation(flat_prog, 0, "i_position");
+		glBindAttribLocation(flat_prog, 1, "i_light");
+		link_program(flat_prog, vs, fs);
+		glDeleteShader(vs);
+		glDeleteShader(fs);
+		flat_u_viewproj = glGetUniformLocation(terrain_prog, "u_viewproj");
+	}
+	return !!terrain_prog && !!flat_prog;
 }
 bool load_textures() {
 	glUseProgram(terrain_prog);
