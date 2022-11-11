@@ -142,6 +142,7 @@ void RenderLevel::draw() {
 }
 static GLuint raytarget_va, raytarget_vb;
 static GLuint crosshair_va, crosshair_vb;
+static GLuint handitem_va, handitem_vb;
 void init_raytarget()
 {
 	glGenVertexArrays(1, &raytarget_va);
@@ -164,6 +165,9 @@ void draw_raytarget(const RaycastResult &ray)
 	glVertexAttrib1f(1, 0.f);
 	glDrawArrays(GL_LINE_LOOP, 0, 4);
 	glEnable(GL_DEPTH_TEST);
+}
+static void push_quad(std::vector<float> &data, vec3 a, vec3 ta, vec3 b, vec3 tb, vec3 c, vec3 tc, vec3 d, vec3 td) {
+	data << a << ta << b << tb << c << tc << a << ta << c << tc << d << td;
 }
 void init_hud()
 {
@@ -190,9 +194,21 @@ void init_hud()
 		 9,  1,
 	};
 	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*14*2, crosshair_buf, GL_STREAM_DRAW);
+
+	glGenVertexArrays(1, &handitem_va);
+	glGenBuffers(1, &handitem_vb);
+	glBindBuffer(GL_ARRAY_BUFFER, handitem_vb);
+	glBindVertexArray(handitem_va);
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+	glEnableVertexAttribArray(2);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)0);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(3*sizeof(float)));
+	glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(5*sizeof(float)));
 }
-void draw_hud(int width, int height)
+void draw_hud(int width, int height, uint8_t id, uint8_t data)
 {
+	// draw crosshair
 	glUseProgram(flat_prog);
 	mat4 m(1.f);
 	m[0][0] = 5*.5f/width;
@@ -209,9 +225,96 @@ void draw_hud(int width, int height)
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 14);
 	glDisable(GL_BLEND);
 	glEnable(GL_DEPTH_TEST);
-}
-static void push_quad(std::vector<float> &data, vec3 a, vec3 ta, vec3 b, vec3 tb, vec3 c, vec3 tc, vec3 d, vec3 td) {
-	data << a << ta << b << tb << c << tc << a << ta << c << tc << d << td;
+
+	// draw item in hand
+	glUseProgram(terrain_prog);
+	m = mat4(1.f);
+	glUniformMatrix4fv(terrain_u_viewproj, 1, GL_FALSE, value_ptr(m));
+	glBindVertexArray(handitem_va);
+	glDisable(GL_DEPTH_TEST);
+	std::vector<float> verts;
+	switch (tiles::render_type[id]) {
+	case RenderType::AIR:
+		break;
+	case RenderType::CUBE:
+	case RenderType::SLAB: {
+		/* This isn't a proper isometric projection. Instead this
+		 * is the dimetric projection commonly used in pixel art.
+		 * Lateral axes have 2:1 x:y slope under this projection.
+		 * The y component of a sloped unit vector is 1/sqrt(5):
+		 * 1 = sqrt(2y*2y + y*y) = sqrt(5)*y */
+		float scale = 1/5.f;
+		float dy = scale/glm::root_five<float>();
+		float dx = dy*2.f*height/width;
+		/* offset is needed to center the cube horizontally
+		 * total height: 1 + 2/root_five
+		 * total  width: 4/root_five */
+		float offset = (1 - 2/glm::root_five<float>())/2*scale*height/width;
+		/*  a
+		 * b c
+		 *  d
+		 * e f
+		 *  g  */
+		vec3 a(1.f-offset-dx,    1.f,             0.f);
+		vec3 b(1.f-offset-dx-dx, 1.f-dy,          0.f);
+		vec3 c(1.f-offset,       1.f-dy,          0.f);
+		vec3 d(1.f-offset-dx,    1.f-dy-dy,       0.f);
+		vec3 e(1.f-offset-dx-dx, 1.f-dy-scale,    0.f);
+		vec3 f(1.f-offset,       1.f-dy-scale,    0.f);
+		vec3 g(1.f-offset-dx,    1.f-dy-dy-scale, 0.f);
+		uint8_t tex1 = tiles::tex(id, 1, data);
+		float s1 = tex1%16/16.f;
+		float t1 = tex1/16/16.f;
+		vec3 t1a(s1,        t1,        1.f);
+		vec3 t1b(s1,        t1+1/16.f, 1.f);
+		vec3 t1d(s1+1/16.f, t1+1/16.f, 1.f);
+		vec3 t1c(s1+1/16.f, t1,        1.f);
+		uint8_t tex2 = tiles::tex(id, 3, data);
+		float s2 = tex2%16/16.f;
+		float t2 = tex2/16/16.f;
+		vec3 t2b(s2,        t2,        .8f);
+		vec3 t2e(s2,        t2+1/16.f, .8f);
+		vec3 t2g(s2+1/16.f, t2+1/16.f, .8f);
+		vec3 t2d(s2+1/16.f, t2,        .8f);
+		uint8_t tex3 = tiles::tex(id, 5, data);
+		float s3 = tex3%16/16.f;
+		float t3 = tex3/16/16.f;
+		vec3 t3d(s3,        t3,        .6f);
+		vec3 t3g(s3,        t3+1/16.f, .6f);
+		vec3 t3f(s3+1/16.f, t3+1/16.f, .6f);
+		vec3 t3c(s3+1/16.f, t3,        .6f);
+		push_quad(verts, a, t1a, b, t1b, d, t1d, c, t1c);
+		push_quad(verts, b, t2b, e, t2e, g, t2g, d, t2d);
+		push_quad(verts, d, t3d, g, t3g, f, t3f, c, t3c);
+		glBindBuffer(GL_ARRAY_BUFFER, handitem_vb);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(float)*verts.size(), verts.data(), GL_STREAM_DRAW);
+		glDrawArrays(GL_TRIANGLES, 0, verts.size()/6);
+		break;
+	}
+	case RenderType::PLANT:
+	case RenderType::WIRE:
+	case RenderType::TORCH: {
+		float scaley = (1+2/glm::root_five<float>())/5.f;
+		float scalex = scaley*height/width;
+		vec3 a(1.f-scalex, 1.f,        0.f);
+		vec3 b(1.f-scalex, 1.f-scaley, 0.f);
+		vec3 c(1.f,        1.f-scaley, 0.f);
+		vec3 d(1.f,        1.f,        0.f);
+		uint8_t tex = tiles::tex(id, 0, data);
+		float s = tex%16/16.f;
+		float t = tex/16/16.f;
+		vec3 ta(s,        t,        1.f);
+		vec3 tb(s,        t+1/16.f, 1.f);
+		vec3 tc(s+1/16.f, t+1/16.f, 1.f);
+		vec3 td(s+1/16.f, t,        1.f);
+		push_quad(verts, a, ta, b, tb, c, tc, d, td);
+		glBindBuffer(GL_ARRAY_BUFFER, handitem_vb);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(float)*verts.size(), verts.data(), GL_STREAM_DRAW);
+		glDrawArrays(GL_TRIANGLES, 0, verts.size()/6);
+		break;
+	}
+	}
+	glEnable(GL_DEPTH_TEST);
 }
 void raytarget_face(const RaycastResult &r, float *buf)
 {

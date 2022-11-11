@@ -151,6 +151,7 @@ int main(int argc, char** argv)
 	bool phys_ground = false;
 	uint8_t id_in_hand = 35;
 	uint8_t data_in_hand = 1;
+	uint8_t cloth_color = 1;
 
 	RaycastResult ray;
 	bool ray_valid = false;
@@ -244,9 +245,23 @@ int main(int argc, char** argv)
 					case SDL_SCANCODE_F:
 						physics_enabled = !physics_enabled;
 						break;
-					case SDL_SCANCODE_1: id_in_hand = 35; data_in_hand = 1; break;
+					case SDL_SCANCODE_1: id_in_hand = 35; data_in_hand = cloth_color; break;
 					case SDL_SCANCODE_2: id_in_hand = 55; data_in_hand = 0; break;
 					case SDL_SCANCODE_3: id_in_hand = 76; data_in_hand = 0; break;
+					case SDL_SCANCODE_LEFTBRACKET:
+						if (id_in_hand == 35) {
+							cloth_color--;
+							cloth_color &= 15;
+							data_in_hand = cloth_color;
+						}
+						break;
+					case SDL_SCANCODE_RIGHTBRACKET:
+						if (id_in_hand == 35) {
+							cloth_color++;
+							cloth_color &= 15;
+							data_in_hand = cloth_color;
+						}
+						break;
 					case SDL_SCANCODE_L: pos = vec3(33.f, 2.f, 32.f); break;
 					default:
 						break;
@@ -407,7 +422,7 @@ int main(int argc, char** argv)
 		if (ray_valid)
 			draw_raytarget(ray);
 
-		draw_hud(width, height);
+		draw_hud(width, height, id_in_hand, data_in_hand);
 #if 0
 		glBindBuffer(GL_ARRAY_BUFFER, debug_vb);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(float)*debug_buf.size(), debug_buf.data(), GL_STREAM_DRAW);

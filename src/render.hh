@@ -47,7 +47,7 @@ public:
 	void init_raytarget();
 	void draw_raytarget(const RaycastResult &ray);
 	void init_hud();
-	void draw_hud(int width, int height);
+	void draw_hud(int width, int height, uint8_t id, uint8_t data);
 	bool load_shaders();
 	bool load_textures();
 	void raytarget_face(const RaycastResult &r, float *buf);
