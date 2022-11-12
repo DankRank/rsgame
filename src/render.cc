@@ -338,7 +338,7 @@ void raytarget_face(const RaycastResult &r, float *buf)
 	v -= vecs[r.f][1]*aabbd;
 	*buf++ = v.x; *buf++ = v.y; *buf++ = v.z;
 }
-static void draw_face_basic(float x0, float y0, float z0, float dx, float dy, float dz, int f, int tex, float ds=1.f, float dt=1.f, bool spin = false, float ss = 0.f, float st = 0.f, float customlight = -1.f) {
+static void draw_face_basic(float x0, float y0, float z0, float dx, float dy, float dz, int f, int tex, float ds=1.f, float dt=1.f, bool spin = false, float ss = 0.f, float st = 0.f, float customlight = -2.f) {
 	// verticies are defined in the texture order:
 	// s,t     s+1,t
 	//  A <------ D
@@ -403,7 +403,7 @@ static void draw_face_basic(float x0, float y0, float z0, float dx, float dy, fl
 			light = .6f;
 			break;
 	}
-	if (customlight != -1.f)
+	if (customlight != -2.f)
 		light = customlight;
 	vec3 ta,tb,tc,td;
 	float s = tex%16/16.f;
@@ -525,7 +525,7 @@ void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int 
 			if (!pz)
 				dz -= .3125f;
 		}
-		float light = level->get_tile_meta(x, y, z)/15.f;
+		float light = level->get_tile_meta(x, y, z)/-15.f;
 		draw_face_basic(x+sx, y-.9375f, z+sz, dx, 1.f, dz, 1, tex + (int)straight, dx, dz, spin, sx, sz, light);
 		if (!pinched) {
 			if (mxo && level->get_tile_id(x-1, y+1, z) == 55)
