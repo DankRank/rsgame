@@ -401,8 +401,8 @@ void Level::wire_propagation(int x, int y, int z, int sx, int sy, int sz) {
 				if (dx != sx || y-1 != sy || dz != sz)
 					new_strength = std::max(new_strength, get_tile_id(dx, y-1, dz) == 55 ? get_tile_meta(dx, y-1, dz) : 0);
 			}
-			new_strength = std::max(new_strength-1, 0);
 		}
+		new_strength = std::max(new_strength-1, 0);
 	}
 	if (old_strength != new_strength) {
 		if (get_tile_id(x, y, z) == 55) {
