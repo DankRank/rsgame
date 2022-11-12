@@ -123,22 +123,6 @@ int main(int argc, char** argv)
 	init_raytarget();
 	init_hud();
 
-#if 0
-	GLuint debug_va, debug_vb;
-	glGenVertexArrays(1, &debug_va);
-	glGenBuffers(1, &debug_vb);
-	glBindBuffer(GL_ARRAY_BUFFER, debug_vb);
-	glBindVertexArray(debug_va);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
-	std::vector<float> debug_buf;
-	auto cube = [&](vec3 a, vec3 b, vec3 c, vec3 d, vec3 e, vec3 f, vec3 g, vec3 h) {
-		debug_buf << a << b << b << c << c << d << d << a;
-		debug_buf << e << f << f << g << g << h << h << e;
-		debug_buf << a << e << b << f << c << g << d << h;
-	};
-#endif
-
 	double avg_frame_time = 0;
 	Uint64 unprocessed_ms = 0;
 	Uint64 last_frame = SDL_GetTicks64();
@@ -436,13 +420,7 @@ int main(int argc, char** argv)
 			draw_raytarget(ray);
 
 		draw_hud(width, height, id_in_hand, data_in_hand);
-#if 0
-		glBindBuffer(GL_ARRAY_BUFFER, debug_vb);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(float)*debug_buf.size(), debug_buf.data(), GL_STREAM_DRAW);
-		glBindVertexArray(debug_va);
-		glDrawArrays(GL_LINES, 0, debug_buf.size()/3);
-		debug_buf.clear();
-#endif
+
 		SDL_GL_SwapWindow(window);
 		Uint64 frame_end = SDL_GetPerformanceCounter();
 		double frame_time = (double)(frame_end - frame_start) / SDL_GetPerformanceFrequency();
