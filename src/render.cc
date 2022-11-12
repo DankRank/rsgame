@@ -8,7 +8,59 @@ GLuint flat_prog = 0;
 static GLuint terrain_u_viewproj = 0;
 static GLuint terrain_u_tex = 0;
 static GLuint terrain_tex = 0;
+static GLuint terrain_u_lighttex = 0;
+static GLuint terrain_lighttex = 0;
 static GLuint flat_u_viewproj = 0;
+enum {
+	LIGHT_TOP = 0,
+	LIGHT_SIDEZ,
+	LIGHT_SIDEX,
+	LIGHT_BOTTOM,
+	LIGHT_NONE,
+	LIGHT_WIRE0,
+	LIGHT_WIRE1,
+	LIGHT_WIRE2,
+	LIGHT_WIRE3,
+	LIGHT_WIRE4,
+	LIGHT_WIRE5,
+	LIGHT_WIRE6,
+	LIGHT_WIRE7,
+	LIGHT_WIRE8,
+	LIGHT_WIRE9,
+	LIGHT_WIRE10,
+	LIGHT_WIRE11,
+	LIGHT_WIRE12,
+	LIGHT_WIRE13,
+	LIGHT_WIRE14,
+	LIGHT_WIRE15,
+};
+static const float light_values[32*4] = {
+	1.f, 1.f, 1.f, 1.f, // LIGHT_TOP
+	.8f, .8f, .8f, 1.f, // LIGHT_SIDEZ
+	.6f, .6f, .6f, 1.f, // LIGHT_SIDEX
+	.5f, .5f, .5f, 1.f, // LIGHT_BOTTOM
+	.0f, .0f, .0f, 1.f, // LIGHT_NONE
+	.0f, .0f, .0f, 1.f, // LIGHT_WIRE0
+#define WIRE_LIGHT(data) data/15.f * .6f + .4f, (data > 12 ? data/15.f * data/15.f * .7f - .5f : .0f), .0f, 1.f
+	WIRE_LIGHT(1),
+	WIRE_LIGHT(2),
+	WIRE_LIGHT(3),
+	WIRE_LIGHT(4),
+	WIRE_LIGHT(5),
+	WIRE_LIGHT(6),
+	WIRE_LIGHT(7),
+	WIRE_LIGHT(8),
+	WIRE_LIGHT(9),
+	WIRE_LIGHT(10),
+	WIRE_LIGHT(11),
+	WIRE_LIGHT(12),
+	WIRE_LIGHT(13),
+	WIRE_LIGHT(14),
+	WIRE_LIGHT(15),
+#undef WIRE_LIGHT
+};
+#define LIGHT_MAX (sizeof(light_values)/sizeof(float[4]))
+#define LIGHT_VAL(x) ((x)/(float)LIGHT_MAX)
 
 std::vector<float> RenderChunk::data;
 RenderChunk::RenderChunk(int x, int y, int z) :x(x), y(y), z(z) {
@@ -265,24 +317,24 @@ void draw_hud(int width, int height, uint8_t id, uint8_t data)
 		uint8_t tex1 = tiles::tex(id, 1, data);
 		float s1 = tex1%16/16.f;
 		float t1 = tex1/16/16.f;
-		vec3 t1a(s1,        t1,        1.f);
-		vec3 t1b(s1,        t1+1/16.f, 1.f);
-		vec3 t1d(s1+1/16.f, t1+1/16.f, 1.f);
-		vec3 t1c(s1+1/16.f, t1,        1.f);
+		vec3 t1a(s1,        t1,        LIGHT_VAL(LIGHT_TOP));
+		vec3 t1b(s1,        t1+1/16.f, LIGHT_VAL(LIGHT_TOP));
+		vec3 t1d(s1+1/16.f, t1+1/16.f, LIGHT_VAL(LIGHT_TOP));
+		vec3 t1c(s1+1/16.f, t1,        LIGHT_VAL(LIGHT_TOP));
 		uint8_t tex2 = tiles::tex(id, 3, data);
 		float s2 = tex2%16/16.f;
 		float t2 = tex2/16/16.f;
-		vec3 t2b(s2,        t2,        .8f);
-		vec3 t2e(s2,        t2+1/16.f, .8f);
-		vec3 t2g(s2+1/16.f, t2+1/16.f, .8f);
-		vec3 t2d(s2+1/16.f, t2,        .8f);
+		vec3 t2b(s2,        t2,        LIGHT_VAL(LIGHT_SIDEZ));
+		vec3 t2e(s2,        t2+1/16.f, LIGHT_VAL(LIGHT_SIDEZ));
+		vec3 t2g(s2+1/16.f, t2+1/16.f, LIGHT_VAL(LIGHT_SIDEZ));
+		vec3 t2d(s2+1/16.f, t2,        LIGHT_VAL(LIGHT_SIDEZ));
 		uint8_t tex3 = tiles::tex(id, 5, data);
 		float s3 = tex3%16/16.f;
 		float t3 = tex3/16/16.f;
-		vec3 t3d(s3,        t3,        .6f);
-		vec3 t3g(s3,        t3+1/16.f, .6f);
-		vec3 t3f(s3+1/16.f, t3+1/16.f, .6f);
-		vec3 t3c(s3+1/16.f, t3,        .6f);
+		vec3 t3d(s3,        t3,        LIGHT_VAL(LIGHT_SIDEX));
+		vec3 t3g(s3,        t3+1/16.f, LIGHT_VAL(LIGHT_SIDEX));
+		vec3 t3f(s3+1/16.f, t3+1/16.f, LIGHT_VAL(LIGHT_SIDEX));
+		vec3 t3c(s3+1/16.f, t3,        LIGHT_VAL(LIGHT_SIDEX));
 		push_quad(verts, a, t1a, b, t1b, d, t1d, c, t1c);
 		push_quad(verts, b, t2b, e, t2e, g, t2g, d, t2d);
 		push_quad(verts, d, t3d, g, t3g, f, t3f, c, t3c);
@@ -303,10 +355,10 @@ void draw_hud(int width, int height, uint8_t id, uint8_t data)
 		uint8_t tex = tiles::tex(id, 0, data);
 		float s = tex%16/16.f;
 		float t = tex/16/16.f;
-		vec3 ta(s,        t,        1.f);
-		vec3 tb(s,        t+1/16.f, 1.f);
-		vec3 tc(s+1/16.f, t+1/16.f, 1.f);
-		vec3 td(s+1/16.f, t,        1.f);
+		vec3 ta(s,        t,        LIGHT_VAL(LIGHT_TOP));
+		vec3 tb(s,        t+1/16.f, LIGHT_VAL(LIGHT_TOP));
+		vec3 tc(s+1/16.f, t+1/16.f, LIGHT_VAL(LIGHT_TOP));
+		vec3 td(s+1/16.f, t,        LIGHT_VAL(LIGHT_TOP));
 		push_quad(verts, a, ta, b, tb, c, tc, d, td);
 		glBindBuffer(GL_ARRAY_BUFFER, handitem_vb);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(float)*verts.size(), verts.data(), GL_STREAM_DRAW);
@@ -338,7 +390,7 @@ void raytarget_face(const RaycastResult &r, float *buf)
 	v -= vecs[r.f][1]*aabbd;
 	*buf++ = v.x; *buf++ = v.y; *buf++ = v.z;
 }
-static void draw_face_basic(float x0, float y0, float z0, float dx, float dy, float dz, int f, int tex, float ds=1.f, float dt=1.f, bool spin = false, float ss = 0.f, float st = 0.f, float customlight = -2.f) {
+static void draw_face_basic(float x0, float y0, float z0, float dx, float dy, float dz, int f, int tex, int light, float ds=1.f, float dt=1.f, bool spin = false, float ss = 0.f, float st = 0.f) {
 	// verticies are defined in the texture order:
 	// s,t     s+1,t
 	//  A <------ D
@@ -358,60 +410,51 @@ static void draw_face_basic(float x0, float y0, float z0, float dx, float dy, fl
 	// In order to draw bottom correctly, we must swap B/D.
 	// This makes the texture on the bottom appear flipped.
 	vec3 a,b,c,d;
-	float light;
 	switch (f) {
 		case 0:
 			a = vec3(x0   , y0   , z0   );
 			b = vec3(x0   , y0   , z0+dz);
 			c = vec3(x0+dx, y0   , z0+dz);
 			d = vec3(x0+dx, y0   , z0   );
-			light = .5f;
 			break;
 		case 1:
 			a = vec3(x0   , y0+dy, z0   );
 			b = vec3(x0   , y0+dy, z0+dz);
 			c = vec3(x0+dx, y0+dy, z0+dz);
 			d = vec3(x0+dx, y0+dy, z0   );
-			light = 1.f;
 			break;
 		case 2:
 			a = vec3(x0+dx, y0+dy, z0   );
 			b = vec3(x0+dx, y0   , z0   );
 			c = vec3(x0   , y0   , z0   );
 			d = vec3(x0   , y0+dy, z0   );
-			light = .8f;
 			break;
 		case 3:
 			a = vec3(x0   , y0+dy, z0+dz);
 			b = vec3(x0   , y0   , z0+dz);
 			c = vec3(x0+dx, y0   , z0+dz);
 			d = vec3(x0+dx, y0+dy, z0+dz);
-			light = .8f;
 			break;
 		case 4:
 			a = vec3(x0   , y0+dy, z0   );
 			b = vec3(x0   , y0   , z0   );
 			c = vec3(x0   , y0   , z0+dz);
 			d = vec3(x0   , y0+dy, z0+dz);
-			light = .6f;
 			break;
 		case 5:
 			a = vec3(x0+dx, y0+dy, z0+dz);
 			b = vec3(x0+dx, y0   , z0+dz);
 			c = vec3(x0+dx, y0   , z0   );
 			d = vec3(x0+dx, y0+dy, z0   );
-			light = .6f;
 			break;
 	}
-	if (customlight != -2.f)
-		light = customlight;
 	vec3 ta,tb,tc,td;
 	float s = tex%16/16.f;
 	float t = tex/16/16.f;
-	ta = vec3(s+ss/16.f        , t+st/16.f        , light);
-	tb = vec3(s+ss/16.f        , t+st/16.f+dt/16.f, light);
-	tc = vec3(s+ss/16.f+ds/16.f, t+st/16.f+dt/16.f, light);
-	td = vec3(s+ss/16.f+ds/16.f, t+st/16.f        , light);
+	ta = vec3(s+ss/16.f        , t+st/16.f        , LIGHT_VAL(light));
+	tb = vec3(s+ss/16.f        , t+st/16.f+dt/16.f, LIGHT_VAL(light));
+	tc = vec3(s+ss/16.f+ds/16.f, t+st/16.f+dt/16.f, LIGHT_VAL(light));
+	td = vec3(s+ss/16.f+ds/16.f, t+st/16.f        , LIGHT_VAL(light));
 	if (spin) {
 		td = std::exchange(ta, std::exchange(tb, std::exchange(tc, td)));
 	}
@@ -421,8 +464,8 @@ static void draw_face_basic(float x0, float y0, float z0, float dx, float dy, fl
 		push_quad(RenderChunk::data, a, ta, d, tb, c, tc, b, td);
 	}
 }
-static void draw_face(int x, int y, int z, int f, int tex) {
-	draw_face_basic(x, y, z, 1.f, 1.f, 1.f, f, tex);
+static void draw_face(int x, int y, int z, int f, int tex, int light) {
+	draw_face_basic(x, y, z, 1.f, 1.f, 1.f, f, tex, light);
 }
 void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int data)
 {
@@ -431,26 +474,26 @@ void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int 
 		break;
 	case RenderType::CUBE:
 		if (!tiles::is_opaque[level->get_tile_id(x, y-1, z)])
-			draw_face(x, y, z, 0, tiles::tex(id, 0, data));
+			draw_face(x, y, z, 0, tiles::tex(id, 0, data), LIGHT_BOTTOM);
 		if (!tiles::is_opaque[level->get_tile_id(x, y+1, z)])
-			draw_face(x, y, z, 1, tiles::tex(id, 1, data));
+			draw_face(x, y, z, 1, tiles::tex(id, 1, data), LIGHT_TOP);
 		if (!tiles::is_opaque[level->get_tile_id(x, y, z-1)])
-			draw_face(x, y, z, 2, tiles::tex(id, 2, data));
+			draw_face(x, y, z, 2, tiles::tex(id, 2, data), LIGHT_SIDEZ);
 		if (!tiles::is_opaque[level->get_tile_id(x, y, z+1)])
-			draw_face(x, y, z, 3, tiles::tex(id, 3, data));
+			draw_face(x, y, z, 3, tiles::tex(id, 3, data), LIGHT_SIDEZ);
 		if (!tiles::is_opaque[level->get_tile_id(x-1, y, z)])
-			draw_face(x, y, z, 4, tiles::tex(id, 4, data));
+			draw_face(x, y, z, 4, tiles::tex(id, 4, data), LIGHT_SIDEX);
 		if (!tiles::is_opaque[level->get_tile_id(x+1, y, z)])
-			draw_face(x, y, z, 5, tiles::tex(id, 5, data));
+			draw_face(x, y, z, 5, tiles::tex(id, 5, data), LIGHT_SIDEX);
 		break;
 	case RenderType::PLANT: {
 		int tex = tiles::tex(id, 0, data);
 		float s = tex%16/16.f;
 		float t = tex/16/16.f;
-		vec3 ta(s       , t       , 1.f);
-		vec3 tb(s       , t+1/16.f, 1.f);
-		vec3 tc(s+1/16.f, t+1/16.f, 1.f);
-		vec3 td(s+1/16.f, t       , 1.f);
+		vec3 ta(s       , t       , LIGHT_VAL(LIGHT_TOP));
+		vec3 tb(s       , t+1/16.f, LIGHT_VAL(LIGHT_TOP));
+		vec3 tc(s+1/16.f, t+1/16.f, LIGHT_VAL(LIGHT_TOP));
+		vec3 td(s+1/16.f, t       , LIGHT_VAL(LIGHT_TOP));
 		float p = 0.05;
 		float q = 1-p;
 		vec3 a(x+p, y,   z+p);
@@ -470,16 +513,16 @@ void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int 
 	}
 	case RenderType::SLAB:
 		if (!tiles::is_opaque[level->get_tile_id(x, y-1, z)])
-			draw_face(x, y, z, 0, tiles::tex(id, 0, data));
-		draw_face_basic(x, y-.5f, z, 1.f, 1.f, 1.f, 1, tiles::tex(id, 1, data));
+			draw_face(x, y, z, 0, tiles::tex(id, 0, data), LIGHT_BOTTOM);
+		draw_face_basic(x, y-.5f, z, 1.f, 1.f, 1.f, 1, tiles::tex(id, 1, data), LIGHT_TOP);
 		if (!tiles::is_opaque[level->get_tile_id(x, y, z-1)])
-			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 2, tiles::tex(id, 2, data), 1.f, .5f);
+			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 2, tiles::tex(id, 2, data), LIGHT_SIDEZ, 1.f, .5f);
 		if (!tiles::is_opaque[level->get_tile_id(x, y, z+1)])
-			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 3, tiles::tex(id, 3, data), 1.f, .5f);
+			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 3, tiles::tex(id, 3, data), LIGHT_SIDEZ, 1.f, .5f);
 		if (!tiles::is_opaque[level->get_tile_id(x-1, y, z)])
-			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 4, tiles::tex(id, 4, data), 1.f, .5f);
+			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 4, tiles::tex(id, 4, data), LIGHT_SIDEX, 1.f, .5f);
 		if (!tiles::is_opaque[level->get_tile_id(x+1, y, z)])
-			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 5, tiles::tex(id, 5, data), 1.f, .5f);
+			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 5, tiles::tex(id, 5, data), LIGHT_SIDEX, 1.f, .5f);
 		break;
 	case RenderType::WIRE: {
 		bool pinched = tiles::is_opaque[level->get_tile_id(x, y+1, z)];
@@ -525,17 +568,16 @@ void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int 
 			if (!pz)
 				dz -= .3125f;
 		}
-		float light = level->get_tile_meta(x, y, z)/-15.f;
-		draw_face_basic(x+sx, y-.9375f, z+sz, dx, 1.f, dz, 1, tex + (int)straight, dx, dz, spin, sx, sz, light);
+		draw_face_basic(x+sx, y-.9375f, z+sz, dx, 1.f, dz, 1, tex + (int)straight, LIGHT_WIRE0+level->get_tile_meta(x, y, z), dx, dz, spin, sx, sz);
 		if (!pinched) {
 			if (mxo && level->get_tile_id(x-1, y+1, z) == 55)
-				draw_face_basic(x-.9375f, y, z, 1.f, 1.f, 1.f, 5, tex+1, 1.f, 1.f, true);
+				draw_face_basic(x-.9375f, y, z, 1.f, 1.f, 1.f, 5, tex+1, LIGHT_SIDEX, 1.f, 1.f, true);
 			if (pxo && level->get_tile_id(x+1, y+1, z) == 55)
-				draw_face_basic(x+.9375f, y, z, 1.f, 1.f, 1.f, 4, tex+1, 1.f, 1.f, true);
+				draw_face_basic(x+.9375f, y, z, 1.f, 1.f, 1.f, 4, tex+1, LIGHT_SIDEX, 1.f, 1.f, true);
 			if (mzo && level->get_tile_id(x, y+1, z-1) == 55)
-				draw_face_basic(x, y, z-.9375f, 1.f, 1.f, 1.f, 3, tex+1, 1.f, 1.f, true);
+				draw_face_basic(x, y, z-.9375f, 1.f, 1.f, 1.f, 3, tex+1, LIGHT_SIDEZ, 1.f, 1.f, true);
 			if (pzo && level->get_tile_id(x, y+1, z+1) == 55)
-				draw_face_basic(x, y, z+.9375f, 1.f, 1.f, 1.f, 2, tex+1, 1.f, 1.f, true);
+				draw_face_basic(x, y, z+.9375f, 1.f, 1.f, 1.f, 2, tex+1, LIGHT_SIDEZ, 1.f, 1.f, true);
 		}
 		break;
 	}
@@ -552,20 +594,20 @@ void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int 
 			int tex = tiles::tex(id, 1, data);
 			float s = tex%16/16.f;
 			float t = tex/16/16.f;
-			vec3 ta(s+7/256.f, t+6/256.f,  1.f);
-			vec3 tb(s+7/256.f, t+8/256.f, 1.f);
-			vec3 tc(s+9/256.f, t+8/256.f, 1.f);
-			vec3 td(s+9/256.f, t+6/256.f,  1.f);
+			vec3 ta(s+7/256.f, t+6/256.f, LIGHT_VAL(LIGHT_TOP));
+			vec3 tb(s+7/256.f, t+8/256.f, LIGHT_VAL(LIGHT_TOP));
+			vec3 tc(s+9/256.f, t+8/256.f, LIGHT_VAL(LIGHT_TOP));
+			vec3 td(s+9/256.f, t+6/256.f, LIGHT_VAL(LIGHT_TOP));
 			vec3 a = vec3(x+7/16.f, y+10/16.f, z+7/16.f) + svec;
 			vec3 b = vec3(x+7/16.f, y+10/16.f, z+9/16.f) + svec;
 			vec3 c = vec3(x+9/16.f, y+10/16.f, z+9/16.f) + svec;
 			vec3 d = vec3(x+9/16.f, y+10/16.f, z+7/16.f) + svec;
 			push_quad(RenderChunk::data, a, ta, b, tb, c, tc, d, td);
 		}
-		draw_face_basic(x+svec.x, y, z+svec.z+.4375f, 1.f, 1.f, 1.f, 2, tiles::tex(id, 2, data));
-		draw_face_basic(x+svec.x, y, z+svec.z-.4375f, 1.f, 1.f, 1.f, 3, tiles::tex(id, 3, data));
-		draw_face_basic(x+svec.x+.4375f, y, z+svec.z, 1.f, 1.f, 1.f, 4, tiles::tex(id, 4, data));
-		draw_face_basic(x+svec.x-.4375f, y, z+svec.z, 1.f, 1.f, 1.f, 5, tiles::tex(id, 5, data));
+		draw_face_basic(x+svec.x, y, z+svec.z+.4375f, 1.f, 1.f, 1.f, 2, tiles::tex(id, 2, data), LIGHT_SIDEZ);
+		draw_face_basic(x+svec.x, y, z+svec.z-.4375f, 1.f, 1.f, 1.f, 3, tiles::tex(id, 3, data), LIGHT_SIDEZ);
+		draw_face_basic(x+svec.x+.4375f, y, z+svec.z, 1.f, 1.f, 1.f, 4, tiles::tex(id, 4, data), LIGHT_SIDEX);
+		draw_face_basic(x+svec.x-.4375f, y, z+svec.z, 1.f, 1.f, 1.f, 5, tiles::tex(id, 5, data), LIGHT_SIDEX);
 		break;
 	}
 
@@ -588,6 +630,7 @@ bool load_shaders() {
 		glDeleteShader(fs);
 		terrain_u_viewproj = glGetUniformLocation(terrain_prog, "u_viewproj");
 		terrain_u_tex = glGetUniformLocation(terrain_prog, "u_tex");
+		terrain_u_lighttex = glGetUniformLocation(terrain_prog, "u_lighttex");
 	}
 	vs = load_shader(GL_VERTEX_SHADER, "assets/flat.vert");
 	fs = load_shader(GL_FRAGMENT_SHADER, "assets/flat.frag");
@@ -611,6 +654,15 @@ bool load_textures() {
 	if (!load_png("assets/terrain.png"))
 	//if (!load_png("terrain.png"))
 		return false;
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	glUniform1i(terrain_u_lighttex, 1);
+	glGenTextures(1, &terrain_lighttex);
+	glActiveTexture(GL_TEXTURE0+1);
+	// using 2D texture for GLES support
+	glBindTexture(GL_TEXTURE_2D, terrain_lighttex);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, LIGHT_MAX, 1, 0, GL_RGBA, GL_FLOAT, light_values);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	return true;
