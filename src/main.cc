@@ -142,9 +142,34 @@ int main(int argc, char** argv)
 	double avg_frame_time = 0;
 	Uint64 unprocessed_ms = 0;
 	Uint64 last_frame = SDL_GetTicks64();
-	bool key_left = false, key_right = false, key_up = false, key_down = false;
-	bool key_w = false, key_s = false, key_a = false, key_d = false;
-	bool key_sp = false, key_shift = false, key_ctrl = false;
+	enum {
+		KEY_LEFT = 0,
+		KEY_RIGHT,
+		KEY_UP,
+		KEY_DOWN,
+		KEY_W,
+		KEY_S,
+		KEY_A,
+		KEY_D,
+		KEY_SPACE,
+		KEY_SHIFT,
+		KEY_CTRL,
+		KEY_COUNT,
+	};
+	std::unordered_map<int, int> key_map {
+		{SDL_SCANCODE_LEFT,   KEY_LEFT },
+		{SDL_SCANCODE_RIGHT,  KEY_RIGHT},
+		{SDL_SCANCODE_UP,     KEY_UP   },
+		{SDL_SCANCODE_DOWN,   KEY_DOWN },
+		{SDL_SCANCODE_W,      KEY_W    },
+		{SDL_SCANCODE_S,      KEY_S    },
+		{SDL_SCANCODE_A,      KEY_A    },
+		{SDL_SCANCODE_D,      KEY_D    },
+		{SDL_SCANCODE_SPACE,  KEY_SPACE},
+		{SDL_SCANCODE_LSHIFT, KEY_SHIFT},
+		{SDL_SCANCODE_LCTRL,  KEY_CTRL },
+	};
+	bool key_state[KEY_COUNT] = {false};
 	bool physics_enabled = false;
 	vec3 phys_velxz = vec3(0, 0, 0);
 	float phys_vely = 0.f;
@@ -268,21 +293,9 @@ int main(int argc, char** argv)
 				}
 			}
 			if (ev.type == SDL_KEYDOWN || ev.type == SDL_KEYUP) {
-				bool down = ev.type == SDL_KEYDOWN;
-				switch (ev.key.keysym.scancode) {
-					case SDL_SCANCODE_LEFT: key_left = down; break;
-					case SDL_SCANCODE_RIGHT: key_right = down; break;
-					case SDL_SCANCODE_UP: key_up = down; break;
-					case SDL_SCANCODE_DOWN: key_down = down; break;
-					case SDL_SCANCODE_W: key_w = down; break;
-					case SDL_SCANCODE_S: key_s = down; break;
-					case SDL_SCANCODE_A: key_a = down; break;
-					case SDL_SCANCODE_D: key_d = down; break;
-					case SDL_SCANCODE_SPACE: key_sp = down; break;
-					case SDL_SCANCODE_LSHIFT: key_shift = down; break;
-					case SDL_SCANCODE_LCTRL: key_ctrl = down; break;
-					default: break;
-				}
+				auto it = key_map.find(ev.key.keysym.scancode);
+				if (it != key_map.end())
+					key_state[it->second] = ev.type == SDL_KEYDOWN;
 			}
 		}
 		// process input
@@ -290,48 +303,48 @@ int main(int argc, char** argv)
 			Uint64 current_frame = SDL_GetTicks64();
 			unprocessed_ms += current_frame - last_frame;
 			last_frame = current_frame;
-			float speed = key_ctrl ? .3f : .15f;
-			float lookspeed = key_ctrl ? .25f : .1f;
+			float speed = key_state[KEY_CTRL] ? .3f : .15f;
+			float lookspeed = key_state[KEY_CTRL] ? .25f : .1f;
 			while (unprocessed_ms > 50) {
-				if (key_left)
+				if (key_state[KEY_LEFT])
 					yaw += lookspeed;
-				if (key_right)
+				if (key_state[KEY_RIGHT])
 					yaw -= lookspeed;
-				if (key_up) {
+				if (key_state[KEY_UP]) {
 					pitch += lookspeed;
 					if (pitch > 3.1415f/2.f)
 						pitch = 3.1415f/2.f;
 				}
-				if (key_down) {
+				if (key_state[KEY_DOWN]) {
 					pitch -= lookspeed;
 					if (pitch < -3.1415f/2.f)
 						pitch = -3.1415f/2.f;
 				}
 				if (!physics_enabled) {
-					if (key_w)
+					if (key_state[KEY_W])
 						pos += look*speed;
-					if (key_s)
+					if (key_state[KEY_S])
 						pos -= look*speed;
-					if (key_a)
+					if (key_state[KEY_A])
 						pos -= normalize(cross(look, vec3(0, 1, 0)))*speed;
-					if (key_d)
+					if (key_state[KEY_D])
 						pos += normalize(cross(look, vec3(0, 1, 0)))*speed;
-					if (key_sp)
+					if (key_state[KEY_SPACE])
 						pos += vec3(0, 1, 0)*speed;
-					if (key_shift)
+					if (key_state[KEY_SHIFT])
 						pos -= vec3(0, 1, 0)*speed;
 				} else {
 					raycast_in_physics = true;
 					vec3 want = vec3(0, 0, 0);
 					vec3 fwd = normalize(vec3(look.x, 0, look.z));
 					vec3 right = normalize(vec3(-look.z, 0, look.x));
-					if (key_w)
+					if (key_state[KEY_W])
 						want += fwd;
-					if (key_s)
+					if (key_state[KEY_S])
 						want -= fwd;
-					if (key_a)
+					if (key_state[KEY_A])
 						want -= right;
-					if (key_d)
+					if (key_state[KEY_D])
 						want += right;
 					// apply friction
 					if (phys_ground) {
@@ -389,7 +402,7 @@ int main(int argc, char** argv)
 					if (!phys_ground) {
 						pos.y += phys_vely;
 					}
-					if (key_sp && phys_ground) {
+					if (key_state[KEY_SPACE] && phys_ground) {
 						printf("%f\n", length(phys_velxz));
 						phys_vely = .5f;
 						pos.y += phys_vely;
