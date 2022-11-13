@@ -50,6 +50,5 @@ public:
 	void draw_hud(int width, int height, uint8_t id, uint8_t data);
 	bool load_shaders();
 	bool load_textures();
-	void raytarget_face(const RaycastResult &r, float *buf);
 }
 #endif

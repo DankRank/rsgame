@@ -206,17 +206,32 @@ void init_raytarget()
 }
 void draw_raytarget(const RaycastResult &ray)
 {
-	float raytarget_buf[4*3];
-	raytarget_face(ray, raytarget_buf);
+	vec3 v = vec3(ray.x, ray.y, ray.z) + ray.aabb->min - vec3(.002f);
+	vec3 d = ray.aabb->max - ray.aabb->min + vec3(.004f);
+	vec3 raytarget_buf[8] = {
+		v + d*vec3(0, 0, 0),
+		v + d*vec3(1, 0, 0),
+		v + d*vec3(1, 0, 1),
+		v + d*vec3(0, 0, 1),
+		v + d*vec3(0, 1, 0),
+		v + d*vec3(1, 1, 0),
+		v + d*vec3(1, 1, 1),
+		v + d*vec3(0, 1, 1),
+	};
 	glUseProgram(flat_prog);
 	glUniformMatrix4fv(0, 1, GL_FALSE, value_ptr(viewproj));
 	glBindBuffer(GL_ARRAY_BUFFER, raytarget_vb);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*4*3, raytarget_buf, GL_STREAM_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*8*3, value_ptr(raytarget_buf[0]), GL_STREAM_DRAW);
 	glBindVertexArray(raytarget_va);
-	glDisable(GL_DEPTH_TEST);
-	glVertexAttrib1f(1, 0.f);
-	glDrawArrays(GL_LINE_LOOP, 0, 4);
-	glEnable(GL_DEPTH_TEST);
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	glLineWidth(2.f);
+	glVertexAttrib4f(1, .0f, .0f, .0f, .4f);
+	static const uint8_t strip[10] = { 0, 1, 2, 3, 0, 4, 5, 6, 7, 4 };
+	static const uint8_t lines[6] = { 1, 5, 2, 6, 3, 7 };
+	glDrawElements(GL_LINE_STRIP, 10, GL_UNSIGNED_BYTE, strip);
+	glDrawElements(GL_LINES, 6, GL_UNSIGNED_BYTE, lines);
+	glDisable(GL_BLEND);
 }
 static void push_quad(std::vector<float> &data, vec3 a, vec3 ta, vec3 b, vec3 tb, vec3 c, vec3 tc, vec3 d, vec3 td) {
 	data << a << ta << b << tb << c << tc << a << ta << c << tc << d << td;
@@ -273,7 +288,7 @@ void draw_hud(int width, int height, uint8_t id, uint8_t data)
 	 * s=1: 1-d */
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
-	glVertexAttrib1f(1, 1.f);
+	glVertexAttrib4f(1, 1.f, 1.f, 1.f, 1.f);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 14);
 	glDisable(GL_BLEND);
 	glEnable(GL_DEPTH_TEST);
@@ -367,28 +382,6 @@ void draw_hud(int width, int height, uint8_t id, uint8_t data)
 	}
 	}
 	glEnable(GL_DEPTH_TEST);
-}
-void raytarget_face(const RaycastResult &r, float *buf)
-{
-	vec3 aabbd = r.aabb->max - r.aabb->min;
-	// same stuff as in draw_face_basic, but simplified
-	static const vec3 vecs[6][3] = {
-		{ vec3(0, 0, 0), vec3(0,  0, 1), vec3( 1, 0,  0) },
-		{ vec3(0, 1, 0), vec3(0,  0, 1), vec3( 1, 0,  0) },
-		{ vec3(1, 1, 0), vec3(0, -1, 0), vec3(-1, 0,  0) },
-		{ vec3(0, 1, 1), vec3(0, -1, 0), vec3( 1, 0,  0) },
-		{ vec3(0, 1, 0), vec3(0, -1, 0), vec3( 0, 0,  1) },
-		{ vec3(1, 1, 1), vec3(0, -1, 0), vec3( 0, 0, -1) },
-	};
-	vec3 v(r.x, r.y, r.z);
-	v += vecs[r.f][0]*aabbd + r.aabb->min;
-	*buf++ = v.x; *buf++ = v.y; *buf++ = v.z;
-	v += vecs[r.f][1]*aabbd;
-	*buf++ = v.x; *buf++ = v.y; *buf++ = v.z;
-	v += vecs[r.f][2]*aabbd;
-	*buf++ = v.x; *buf++ = v.y; *buf++ = v.z;
-	v -= vecs[r.f][1]*aabbd;
-	*buf++ = v.x; *buf++ = v.y; *buf++ = v.z;
 }
 static void draw_face_basic(float x0, float y0, float z0, float dx, float dy, float dz, int f, int tex, int light, float ds=1.f, float dt=1.f, bool spin = false, float ss = 0.f, float st = 0.f) {
 	// verticies are defined in the texture order:
@@ -637,7 +630,7 @@ bool load_shaders() {
 	if (vs && fs) {
 		flat_prog = create_program(vs, fs);
 		glBindAttribLocation(flat_prog, 0, "i_position");
-		glBindAttribLocation(flat_prog, 1, "i_light");
+		glBindAttribLocation(flat_prog, 1, "i_color");
 		link_program(flat_prog, vs, fs);
 		glDeleteShader(vs);
 		glDeleteShader(fs);
