@@ -12,6 +12,19 @@ static GLuint terrain_u_lighttex = 0;
 static GLuint terrain_lighttex = 0;
 static GLuint flat_u_viewproj = 0;
 enum {
+	TERRAIN_TEXTURE_TERRAIN = 0,
+	TERRAIN_TEXTURE_LIGHT,
+};
+enum {
+	TERRAIN_I_POSITION = 0,
+	TERRAIN_I_TEXCOORD,
+	TERRAIN_I_LIGHT,
+};
+enum {
+	FLAT_I_POSITION = 0,
+	FLAT_I_COLOR,
+};
+enum {
 	LIGHT_TOP = 0,
 	LIGHT_SIDEZ,
 	LIGHT_SIDEX,
@@ -68,12 +81,12 @@ RenderChunk::RenderChunk(int x, int y, int z) :x(x), y(y), z(z) {
 	glGenBuffers(1, &vb);
 	glBindBuffer(GL_ARRAY_BUFFER, vb);
 	glBindVertexArray(va);
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1);
-	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(3*sizeof(float)));
-	glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(5*sizeof(float)));
+	glEnableVertexAttribArray(TERRAIN_I_POSITION);
+	glEnableVertexAttribArray(TERRAIN_I_TEXCOORD);
+	glEnableVertexAttribArray(TERRAIN_I_LIGHT);
+	glVertexAttribPointer(TERRAIN_I_POSITION, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)0);
+	glVertexAttribPointer(TERRAIN_I_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(3*sizeof(float)));
+	glVertexAttribPointer(TERRAIN_I_LIGHT,    1, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(5*sizeof(float)));
 	size = 0;
 	cap = 0;
 }
@@ -201,8 +214,8 @@ void init_raytarget()
 	glGenBuffers(1, &raytarget_vb);
 	glBindBuffer(GL_ARRAY_BUFFER, raytarget_vb);
 	glBindVertexArray(raytarget_va);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
+	glEnableVertexAttribArray(FLAT_I_POSITION);
+	glVertexAttribPointer(FLAT_I_POSITION, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
 }
 void draw_raytarget(const RaycastResult &ray)
 {
@@ -226,7 +239,7 @@ void draw_raytarget(const RaycastResult &ray)
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glLineWidth(2.f);
-	glVertexAttrib4f(1, .0f, .0f, .0f, .4f);
+	glVertexAttrib4f(FLAT_I_COLOR, .0f, .0f, .0f, .4f);
 	static const uint8_t strip[10] = { 0, 1, 2, 3, 0, 4, 5, 6, 7, 4 };
 	static const uint8_t lines[6] = { 1, 5, 2, 6, 3, 7 };
 	glDrawElements(GL_LINE_STRIP, 10, GL_UNSIGNED_BYTE, strip);
@@ -242,8 +255,8 @@ void init_hud()
 	glGenBuffers(1, &crosshair_vb);
 	glBindBuffer(GL_ARRAY_BUFFER, crosshair_vb);
 	glBindVertexArray(crosshair_va);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*)0);
+	glEnableVertexAttribArray(FLAT_I_POSITION);
+	glVertexAttribPointer(FLAT_I_POSITION, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*)0);
 	float crosshair_buf[14*2] = {
 		 0,  0,
 		 9,  1,
@@ -266,12 +279,12 @@ void init_hud()
 	glGenBuffers(1, &handitem_vb);
 	glBindBuffer(GL_ARRAY_BUFFER, handitem_vb);
 	glBindVertexArray(handitem_va);
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1);
-	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)0);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(3*sizeof(float)));
-	glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(5*sizeof(float)));
+	glEnableVertexAttribArray(TERRAIN_I_POSITION);
+	glEnableVertexAttribArray(TERRAIN_I_TEXCOORD);
+	glEnableVertexAttribArray(TERRAIN_I_LIGHT);
+	glVertexAttribPointer(TERRAIN_I_POSITION, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)0);
+	glVertexAttribPointer(TERRAIN_I_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(3*sizeof(float)));
+	glVertexAttribPointer(TERRAIN_I_LIGHT,    1, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(5*sizeof(float)));
 }
 void draw_hud(int width, int height, uint8_t id, uint8_t data)
 {
@@ -288,7 +301,7 @@ void draw_hud(int width, int height, uint8_t id, uint8_t data)
 	 * s=1: 1-d */
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
-	glVertexAttrib4f(1, 1.f, 1.f, 1.f, 1.f);
+	glVertexAttrib4f(FLAT_I_COLOR, 1.f, 1.f, 1.f, 1.f);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 14);
 	glDisable(GL_BLEND);
 	glEnable(GL_DEPTH_TEST);
@@ -615,9 +628,9 @@ bool load_shaders() {
 	GLuint fs = load_shader(GL_FRAGMENT_SHADER, "assets/terrain.frag");
 	if (vs && fs) {
 		terrain_prog = create_program(vs, fs);
-		glBindAttribLocation(terrain_prog, 0, "i_position");
-		glBindAttribLocation(terrain_prog, 1, "i_texcoord");
-		glBindAttribLocation(terrain_prog, 2, "i_light");
+		glBindAttribLocation(terrain_prog, TERRAIN_I_POSITION, "i_position");
+		glBindAttribLocation(terrain_prog, TERRAIN_I_TEXCOORD, "i_texcoord");
+		glBindAttribLocation(terrain_prog, TERRAIN_I_LIGHT, "i_light");
 		link_program(terrain_prog, vs, fs);
 		glDeleteShader(vs);
 		glDeleteShader(fs);
@@ -629,8 +642,8 @@ bool load_shaders() {
 	fs = load_shader(GL_FRAGMENT_SHADER, "assets/flat.frag");
 	if (vs && fs) {
 		flat_prog = create_program(vs, fs);
-		glBindAttribLocation(flat_prog, 0, "i_position");
-		glBindAttribLocation(flat_prog, 1, "i_color");
+		glBindAttribLocation(flat_prog, FLAT_I_POSITION, "i_position");
+		glBindAttribLocation(flat_prog, FLAT_I_COLOR, "i_color");
 		link_program(flat_prog, vs, fs);
 		glDeleteShader(vs);
 		glDeleteShader(fs);
@@ -640,9 +653,9 @@ bool load_shaders() {
 }
 bool load_textures() {
 	glUseProgram(terrain_prog);
-	glUniform1i(terrain_u_tex, 0);
+	glUniform1i(terrain_u_tex, TERRAIN_TEXTURE_TERRAIN);
 	glGenTextures(1, &terrain_tex);
-	glActiveTexture(GL_TEXTURE0);
+	glActiveTexture(GL_TEXTURE0 + TERRAIN_TEXTURE_TERRAIN);
 	glBindTexture(GL_TEXTURE_2D, terrain_tex);
 	if (!load_png("assets/terrain.png"))
 	//if (!load_png("terrain.png"))
@@ -650,9 +663,9 @@ bool load_textures() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
-	glUniform1i(terrain_u_lighttex, 1);
+	glUniform1i(terrain_u_lighttex, TERRAIN_TEXTURE_LIGHT);
 	glGenTextures(1, &terrain_lighttex);
-	glActiveTexture(GL_TEXTURE0+1);
+	glActiveTexture(GL_TEXTURE0 + TERRAIN_TEXTURE_LIGHT);
 	// using 2D texture for GLES support
 	glBindTexture(GL_TEXTURE_2D, terrain_lighttex);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, LIGHT_MAX, 1, 0, GL_RGBA, GL_FLOAT, light_values);
