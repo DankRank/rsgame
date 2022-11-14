@@ -420,7 +420,7 @@ int main(int argc, char** argv)
 						want += right;
 					// apply friction
 					if (phys_ground) {
-						const float friction = .1;
+						const float friction = .1f;
 						float speed = length(phys_velxz);
 						if (speed)
 							phys_velxz *= (speed > friction ? speed - friction : 0) / speed;

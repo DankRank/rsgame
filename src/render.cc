@@ -500,7 +500,7 @@ void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int 
 		vec3 tb(s       , t+1/16.f, LIGHT_VAL(LIGHT_TOP));
 		vec3 tc(s+1/16.f, t+1/16.f, LIGHT_VAL(LIGHT_TOP));
 		vec3 td(s+1/16.f, t       , LIGHT_VAL(LIGHT_TOP));
-		float p = 0.05;
+		float p = .05f;
 		float q = 1-p;
 		vec3 a(x+p, y,   z+p);
 		vec3 b(x+q, y,   z+p);
