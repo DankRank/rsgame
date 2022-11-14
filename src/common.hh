@@ -8,8 +8,10 @@
 #include <assert.h>
 #include <string.h>
 #include <math.h>
+#ifndef RSGAME_SERVER
 #include <SDL.h>
 #include <epoxy/gl.h>
+#endif
 #include <glm/vec3.hpp>
 #include <glm/geometric.hpp>
 #include <glm/mat4x4.hpp>

@@ -1,11 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 #include "common.hh"
 #include "level.hh"
+#ifndef RSGAME_SERVER
+#include "render.hh"
+#endif
 namespace rsgame {
-Level::Level() {
-	xsize = 512;
-	zsize = 512;
-	zbits = 9;
+#ifdef RSGAME_SERVER
+struct RenderLevel {
+	void set_dirty(int x, int y, int z) {
+		(void)x; (void)y; (void)z;
+	}
+};
+#endif
+Level::Level(int xs, int zs, int zb) {
+	xsize = xs;
+	zsize = zs;
+	zbits = zb;
 	buf.resize(xsize*zsize*128*3/2);
 	blocks = buf.data();
 	data = buf.data() + xsize*zsize*128;
@@ -97,9 +107,15 @@ Level::Level() {
 	set_tile(3, 1, 13, 76, 3);
 	set_tile(3, 1, 14, 76, 4);
 	set_tile(3, 1, 15, 55, 0);
+
+#ifndef RSGAME_SERVER
+	uint8_t color = 1;
+#else
+	uint8_t color = 2;
+#endif
 	for (int i = 0; i < 16; i++)
 		for (int j = 0; j < 16; j++)
-			set_tile(32+i, 0, 32+j, 35, 1);
+			set_tile(32+i, 0, 32+j, 35, color);
 }
 uint8_t Level::get_tile_id(int x, int y, int z) {
 	if (x < 0 || x > xsize-1 || z < 0 || z > zsize-1 || y < 0 || y > 127)
@@ -322,7 +338,8 @@ void Level::on_block_add(int x, int y, int z, uint8_t id) {
 		update_wire_neighbors(x, y + (tiles::is_opaque[get_tile_id(x, y, z+1)]), z+1);
 	}
 	update_neighbors(x, y, z);
-	rl->set_dirty(x, y, z);
+	if (rl)
+		rl->set_dirty(x, y, z);
 }
 void Level::on_block_remove(int x, int y, int z, uint8_t id) {
 	if (id == 76) {
@@ -346,7 +363,8 @@ void Level::on_block_remove(int x, int y, int z, uint8_t id) {
 		update_wire_neighbors(x, y + (tiles::is_opaque[get_tile_id(x, y, z+1)]), z+1);
 	}
 	update_neighbors(x, y, z);
-	rl->set_dirty(x, y, z);
+	if (rl)
+		rl->set_dirty(x, y, z);
 }
 void Level::update_neighbors(int x, int y, int z) {
 	on_block_update(x-1, y, z);
@@ -407,7 +425,8 @@ void Level::wire_propagation(int x, int y, int z, int sx, int sy, int sz) {
 	if (old_strength != new_strength) {
 		if (get_tile_id(x, y, z) == 55) {
 			set_tile(x, y, z, 55, new_strength);
-			rl->set_dirty(x, y, z);
+			if (rl)
+				rl->set_dirty(x, y, z);
 		}
 		int target = std::max(new_strength-1, 0);
 		for (int d = 0; d < 4; d++) {

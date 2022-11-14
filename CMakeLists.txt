@@ -12,22 +12,42 @@ if(NOT(epoxy_FOUND))
 endif()
 add_subdirectory(extlib/glm)
 
-add_executable(rsgame
+add_library(rsgame_common INTERFACE IMPORTED)
+if(MSVC)
+	set_target_properties(rsgame_common PROPERTIES
+		INTERFACE_COMPILE_OPTIONS "/Zc:__cplusplus;/D_CRT_SECURE_NO_WARNINGS;/W3;/wd4267;/wd4244")
+else()
+	set_target_properties(rsgame_common PROPERTIES
+		INTERFACE_COMPILE_OPTIONS "-Wall;-Wextra;-Wno-parentheses")
+endif()
+set_target_properties(rsgame_common PROPERTIES
+	INTERFACE_COMPILE_FEATURES cxx_std_17)
+if(NOT(CMAKE_VERSION VERSION_LESS 3.16.0))
+	set_target_properties(rsgame_common PROPERTIES
+		INTERFACE_PRECOMPILE_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/src/common.hh")
+endif()
+
+set(SOURCES_COMMON
 	src/common.hh
+	src/level.cc src/level.hh
+	src/tile.cc src/tile.hh)
+set(SOURCES_CLIENT
 	src/main.cc
 	src/render.cc src/render.hh
-	src/level.cc src/level.hh
-	src/tile.cc src/tile.hh
 	src/util.cc src/util.hh
-	src/raycast.cc src/raycast.hh
-)
-target_link_libraries(rsgame PRIVATE SDL2::SDL2 SDL2::SDL2main OpenGL::GL epoxy::epoxy glm::glm PNG::PNG)
-target_compile_features(rsgame PRIVATE cxx_std_17)
-if(MSVC)
-	target_compile_options(rsgame PRIVATE /Zc:__cplusplus /D_CRT_SECURE_NO_WARNINGS /W3 /wd4267 /wd4244)
-else()
-	target_compile_options(rsgame PRIVATE -Wall -Wextra -Wno-parentheses)
+	src/raycast.cc src/raycast.hh)
+SET(SOURCES_SERVER
+	src/maind.cc)
+
+add_executable(rsgame  ${SOURCES_COMMON} ${SOURCES_CLIENT})
+if(NOT(WIN32))
+add_executable(rsgamec ${SOURCES_COMMON} ${SOURCES_CLIENT})
+add_executable(rsgamed ${SOURCES_COMMON} ${SOURCES_SERVER})
 endif()
-if(NOT(CMAKE_VERSION VERSION_LESS 3.16.0))
-	target_precompile_headers(rsgame PRIVATE src/common.hh)
+target_link_libraries(rsgame  PRIVATE rsgame_common SDL2::SDL2 SDL2::SDL2main OpenGL::GL epoxy::epoxy glm::glm PNG::PNG)
+if(NOT(WIN32))
+target_link_libraries(rsgamec PRIVATE rsgame_common SDL2::SDL2 SDL2::SDL2main OpenGL::GL epoxy::epoxy glm::glm PNG::PNG)
+target_link_libraries(rsgamed PRIVATE rsgame_common glm::glm)
+target_compile_definitions(rsgamec PRIVATE -DRSGAME_NETCLIENT)
+target_compile_definitions(rsgamed PRIVATE -DRSGAME_SERVER)
 endif()

@@ -5,6 +5,14 @@
 #include "tile.hh"
 #include "raycast.hh"
 #include "util.hh"
+#include <stdio.h>
+#ifdef RSGAME_NETCLIENT
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <arpa/inet.h>
+#endif
 namespace rsgame {
 bool verbose = true;
 bool gles = false;
@@ -20,6 +28,11 @@ int main(int argc, char** argv)
 {
 	tiles::init();
 
+#if RSGAME_NETCLIENT
+	const char *connect_host = "127.0.0.1";
+	const char *connect_port = "21814";
+	int freeargs = 0;
+#endif
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--gles")) {
 			gles = true;
@@ -30,6 +43,13 @@ int main(int argc, char** argv)
 		} else if (!strcmp(argv[i], "--dump-tiles")) {
 			tiles::dump();
 			return 0;
+		} else {
+#if RSGAME_NETCLIENT
+			switch (freeargs++) {
+				case 0: connect_host = argv[i]; break;
+				case 1: connect_port = argv[i]; break;
+			}
+#endif
 		}
 	}
 	if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_AUDIO | SDL_INIT_GAMECONTROLLER)) {
@@ -88,8 +108,76 @@ int main(int argc, char** argv)
 	if (!load_textures())
 		return 1;
 
+#ifdef RSGAME_NETCLIENT
+	fprintf(stderr, "Connecting to server...\n");
+
+	struct addrinfo hints, *res;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+	int err = getaddrinfo(connect_host, connect_port, &hints, &res);
+	if (err) {
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(err));
+		return 1;
+	}
+	int sock = -1;
+	for (struct addrinfo *ai = res; ai; ai = ai->ai_next) {
+		if (ai->ai_addr->sa_family == AF_INET) {
+			char host[INET_ADDRSTRLEN];
+			inet_ntop(AF_INET, &((struct sockaddr_in*)ai->ai_addr)->sin_addr, host, sizeof(host));
+			uint16_t port = ntohs(((struct sockaddr_in*)ai->ai_addr)->sin_port);
+			fprintf(stderr, "Connecting to %s:%u\n", host, port);
+		} else if (ai->ai_addr->sa_family == AF_INET6) {
+			char host[INET6_ADDRSTRLEN];
+			inet_ntop(AF_INET6, &((struct sockaddr_in6*)ai->ai_addr)->sin6_addr, host, sizeof(host));
+			uint16_t port = ntohs(((struct sockaddr_in6*)ai->ai_addr)->sin6_port);
+			fprintf(stderr, "Connecting to [%s]:%u\n", host, port);
+		} else {
+			fprintf(stderr, "Connecting to ???\n");
+		}
+		sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+		if (sock == -1) {
+			perror("socket");
+			continue;
+		}
+		if (connect(sock, res->ai_addr, res->ai_addrlen) == -1) {
+			perror("connect");
+			close(sock);
+			sock = -1;
+			continue;
+		}
+		break;
+	}
+	freeaddrinfo(res);
+	if (sock == -1) {
+		printf("Couldn't connect\n");
+		return 1;
+	}
+#endif
+
 	fprintf(stderr, "Loading level...\n");
 	Level level;
+#ifdef RSGAME_NETCLIENT
+	uint32_t x;
+	read(sock, &x, 4);
+	uint32_t xsize = ntohl(x);
+	read(sock, &x, 4);
+	uint32_t zsize = ntohl(x);
+	read(sock, &x, 4);
+	uint32_t zbits = ntohl(x);
+	level = Level(xsize, zsize, zbits);
+	int ofs = 0;
+	while (ofs < (int)level.buf.size()) {
+		int r = read(sock, level.buf.data()+ofs, level.buf.size()-ofs);
+		if (r < 0) {
+			perror("read");
+			return 1;
+		}
+		ofs += r;
+		fprintf(stderr, "%d/%d\n", ofs, (int)level.buf.size());
+	}
+#endif
 
 	fprintf(stderr, "Allocating chunks...\n");
 	RenderLevel *rl = new RenderLevel(&level);

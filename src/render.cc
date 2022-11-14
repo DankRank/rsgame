@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 #include "common.hh"
 #include "render.hh"
-#include <epoxy/gl.h>
+#include <stdio.h>
 namespace rsgame {
 GLuint terrain_prog = 0;
 GLuint flat_prog = 0;

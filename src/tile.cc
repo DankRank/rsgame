@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 #include "common.hh"
 #include "tile.hh"
-#include "render.hh"
-#include "level.hh"
-#include "util.hh"
+#include <stdio.h>
 namespace rsgame::tiles {
 static const AABB aabb_air     = {{.0f, .0f, .0f}, {.0f, .0f, .0f}};
 static const AABB aabb_cube    = {{.0f, .0f, .0f}, {1.f, 1.f, 1.f}};

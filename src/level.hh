@@ -2,7 +2,6 @@
 #ifndef RSGAME_LEVEL
 #define RSGAME_LEVEL
 #include "tile.hh"
-#include "render.hh"
 namespace rsgame {
 	struct RenderLevel;
 	struct ScheduledUpdate {
@@ -33,7 +32,7 @@ namespace rsgame {
 		};
 	};
 	struct Level {
-		Level();
+		Level(int xs = 512, int zs = 512, int zb = 9);
 		RenderLevel *rl = nullptr;
 		uint8_t get_tile_id(int x, int y, int z);
 		uint8_t get_tile_meta(int x, int y, int z);
@@ -62,10 +61,11 @@ namespace rsgame {
 		void update_wire_neighbors(int x, int y, int z);
 		void wire_propagation_start(int x, int y, int z);
 		void wire_propagation(int x, int y, int z, int sx, int sy, int sz);
-	private:
+	public:
 		std::vector<uint8_t> buf;
 		uint8_t *blocks;
 		uint8_t *data;
+	private:
 		std::unordered_set<glm::ivec3> pending_wire_updates_set;
 		std::vector<glm::ivec3> pending_wire_updates;
 	};

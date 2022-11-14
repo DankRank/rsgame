@@ -18,7 +18,6 @@ namespace rsgame {
 		float d[6];
 		void from_viewproj(vec3 pos, vec3 look, vec3 upish, float vfov, float aspect, float near, float far);
 	};
-	struct AABB { vec3 min, max; };
 
 	// stuff defined in main.cc
 	extern bool verbose;

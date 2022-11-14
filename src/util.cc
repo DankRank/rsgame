@@ -2,6 +2,7 @@
 #include "common.hh"
 #include "util.hh"
 #include <png.h>
+#include <stdio.h>
 namespace rsgame {
 void SDLDeleter::operator()(void *p) {
 	SDL_free(p);
