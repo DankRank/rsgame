@@ -22,6 +22,10 @@ else()
 endif()
 set_target_properties(rsgame_common PROPERTIES
 	INTERFACE_COMPILE_FEATURES cxx_std_17)
+if(WIN32)
+	set_target_properties(rsgame_common PROPERTIES
+		INTERFACE_COMPILE_DEFINITIONS "-DWINVER=0x0600;-D_WIN32_WINNT=0x0600")
+endif()
 if(NOT(CMAKE_VERSION VERSION_LESS 3.16.0))
 	set_target_properties(rsgame_common PROPERTIES
 		INTERFACE_PRECOMPILE_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/src/common.hh")
@@ -37,17 +41,18 @@ set(SOURCES_CLIENT
 	src/util.cc src/util.hh
 	src/raycast.cc src/raycast.hh)
 SET(SOURCES_SERVER
-	src/maind.cc)
+	src/maind.cc
+	src/net.hh)
 
 add_executable(rsgame  ${SOURCES_COMMON} ${SOURCES_CLIENT})
-if(NOT(WIN32))
-add_executable(rsgamec ${SOURCES_COMMON} ${SOURCES_CLIENT})
+add_executable(rsgamec ${SOURCES_COMMON} ${SOURCES_CLIENT} src/net.hh)
 add_executable(rsgamed ${SOURCES_COMMON} ${SOURCES_SERVER})
-endif()
 target_link_libraries(rsgame  PRIVATE rsgame_common SDL2::SDL2 SDL2::SDL2main OpenGL::GL epoxy::epoxy glm::glm PNG::PNG)
-if(NOT(WIN32))
 target_link_libraries(rsgamec PRIVATE rsgame_common SDL2::SDL2 SDL2::SDL2main OpenGL::GL epoxy::epoxy glm::glm PNG::PNG)
 target_link_libraries(rsgamed PRIVATE rsgame_common glm::glm)
 target_compile_definitions(rsgamec PRIVATE -DRSGAME_NETCLIENT)
 target_compile_definitions(rsgamed PRIVATE -DRSGAME_SERVER)
+if(WIN32)
+target_link_libraries(rsgamec PRIVATE ws2_32)
+target_link_libraries(rsgamed PRIVATE ws2_32)
 endif()

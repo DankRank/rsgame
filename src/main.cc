@@ -7,11 +7,7 @@
 #include "util.hh"
 #include <stdio.h>
 #ifdef RSGAME_NETCLIENT
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <arpa/inet.h>
+#include "net.hh"
 #endif
 namespace rsgame {
 bool verbose = true;
@@ -29,6 +25,10 @@ int main(int argc, char** argv)
 	tiles::init();
 
 #if RSGAME_NETCLIENT
+	if (net_startup() == -1) {
+		fprintf(stderr, "WSAStartup failed\n");
+		return 1;
+	}
 	const char *connect_host = "127.0.0.1";
 	const char *connect_port = "21814";
 	int freeargs = 0;
@@ -138,12 +138,12 @@ int main(int argc, char** argv)
 		}
 		sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 		if (sock == -1) {
-			perror("socket");
+			net_perror("socket");
 			continue;
 		}
 		if (connect(sock, res->ai_addr, res->ai_addrlen) == -1) {
-			perror("connect");
-			close(sock);
+			net_perror("connect");
+			net_close(sock);
 			sock = -1;
 			continue;
 		}
@@ -160,18 +160,18 @@ int main(int argc, char** argv)
 	Level level;
 #ifdef RSGAME_NETCLIENT
 	uint32_t x;
-	read(sock, &x, 4);
+	net_read(sock, &x, 4);
 	uint32_t xsize = ntohl(x);
-	read(sock, &x, 4);
+	net_read(sock, &x, 4);
 	uint32_t zsize = ntohl(x);
-	read(sock, &x, 4);
+	net_read(sock, &x, 4);
 	uint32_t zbits = ntohl(x);
 	level = Level(xsize, zsize, zbits);
 	int ofs = 0;
 	while (ofs < (int)level.buf.size()) {
-		int r = read(sock, level.buf.data()+ofs, level.buf.size()-ofs);
+		int r = net_read(sock, level.buf.data()+ofs, level.buf.size()-ofs);
 		if (r < 0) {
-			perror("read");
+			net_perror("read");
 			return 1;
 		}
 		ofs += r;
