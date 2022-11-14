@@ -1,6 +1,6 @@
 @echo off
 setlocal
-set V=1.6.37
+set V=1.6.38
 if not exist libpng-%V%.tar.gz curl -LSso libpng-%V%.tar.gz https://download.sourceforge.net/libpng/libpng-%V%.tar.gz
 if exist libpng rd /s /q libpng
 tar -xf libpng-%V%.tar.gz

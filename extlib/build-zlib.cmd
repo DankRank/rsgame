@@ -1,6 +1,6 @@
 @echo off
 setlocal
-set V=1.2.12
+set V=1.2.13
 if not exist zlib-%V%.tar.gz curl -LSso zlib-%V%.tar.gz https://zlib.net/zlib-%V%.tar.gz
 if exist zlib rd /s /q zlib
 tar -xf zlib-%V%.tar.gz
