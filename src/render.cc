@@ -216,6 +216,7 @@ void init_raytarget()
 	glBindVertexArray(raytarget_va);
 	glEnableVertexAttribArray(FLAT_I_POSITION);
 	glVertexAttribPointer(FLAT_I_POSITION, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*8*3, nullptr, GL_STREAM_DRAW);
 }
 void draw_raytarget(const RaycastResult &ray)
 {
@@ -234,7 +235,7 @@ void draw_raytarget(const RaycastResult &ray)
 	glUseProgram(flat_prog);
 	glUniformMatrix4fv(0, 1, GL_FALSE, value_ptr(viewproj));
 	glBindBuffer(GL_ARRAY_BUFFER, raytarget_vb);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*8*3, value_ptr(raytarget_buf[0]), GL_STREAM_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float)*8*3, value_ptr(raytarget_buf[0]));
 	glBindVertexArray(raytarget_va);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -285,6 +286,7 @@ void init_hud()
 	glVertexAttribPointer(TERRAIN_I_POSITION, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)0);
 	glVertexAttribPointer(TERRAIN_I_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(3*sizeof(float)));
 	glVertexAttribPointer(TERRAIN_I_LIGHT,    1, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(5*sizeof(float)));
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*3*2*3*6, nullptr, GL_STREAM_DRAW);
 }
 void draw_hud(int width, int height, uint8_t id, uint8_t data)
 {
@@ -367,7 +369,7 @@ void draw_hud(int width, int height, uint8_t id, uint8_t data)
 		push_quad(verts, b, t2b, e, t2e, g, t2g, d, t2d);
 		push_quad(verts, d, t3d, g, t3g, f, t3f, c, t3c);
 		glBindBuffer(GL_ARRAY_BUFFER, handitem_vb);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(float)*verts.size(), verts.data(), GL_STREAM_DRAW);
+		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float)*verts.size(), verts.data());
 		glDrawArrays(GL_TRIANGLES, 0, verts.size()/6);
 		break;
 	}
@@ -389,7 +391,7 @@ void draw_hud(int width, int height, uint8_t id, uint8_t data)
 		vec3 td(s+1/16.f, t,        LIGHT_VAL(LIGHT_TOP));
 		push_quad(verts, a, ta, b, tb, c, tc, d, td);
 		glBindBuffer(GL_ARRAY_BUFFER, handitem_vb);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(float)*verts.size(), verts.data(), GL_STREAM_DRAW);
+		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float)*verts.size(), verts.data());
 		glDrawArrays(GL_TRIANGLES, 0, verts.size()/6);
 		break;
 	}
