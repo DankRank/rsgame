@@ -72,6 +72,9 @@ void link_program(GLuint &program, GLuint vs, GLuint fs) {
 		glDeleteProgram(program);
 		program = 0;
 	} else {
+		/* FIXME: this isn't exactly correct, since the validation takes
+		 * into account stuff like current values of uniforms, and we
+		 * haven't assigned to them yet */
 		glValidateProgram(program);
 		glGetProgramiv(program, GL_VALIDATE_STATUS, &status);
 		glGetProgramiv(program, GL_INFO_LOG_LENGTH, &loglen);
@@ -116,6 +119,11 @@ bool load_png(const char *filename) {
 	return true;
 }
 void Frustum::from_viewproj(vec3 pos, vec3 look, vec3 upish, float vfov, float aspect, float near, float far) {
+	/* All implementation of this that I've seen construct the points for
+	 * side planes on the near (or far) plane intersection. Since we dot
+	 * product with pos for those planes, we only need to know the direction
+	 * for the normals. By using the plane that's 1 unit along the look vector
+	 * we can avoid multiplying look, dx and dy by near (or far). */
 	vec3 right = normalize(cross(look, upish));
 	vec3 up = normalize(cross(right, look));
 	float dy = tanf(vfov/2);

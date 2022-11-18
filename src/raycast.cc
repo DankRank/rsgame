@@ -9,9 +9,9 @@ bool raycast_in_physics = false;
  * First we figure out the point where the look ray intersects a yz plane at
  * the nearest integer x. The point is called (x, y, z) and the distance to it
  * is d. Then we figure out the per-axis distance between two adjacent yz plane
- * intersection along the look ray (dx, dy, dz). Then we simply iterate through
- * (x+k*dx, y+k*dy, z+k*dz) until we either find a collision or reach a limit.
- * Note that x is an integer, and dx is either -1 or 1.
+ * intersections along the look ray (dx, dy, dz). Then we simply iterate
+ * through (x+k*dx, y+k*dy, z+k*dz) until we either find a collision or reach
+ * a limit.  Note that x is an integer, and dx is either -1 or 1.
  *
  * dx and x are trivially computed, however there's a caveat: when you look +x,
  * the intersection is on the -x side of the block, and vice versa, meanwhile
@@ -114,7 +114,7 @@ bool raycast(Level *level, vec3 pos, vec3 look, double maxd, RaycastResult &out)
  * - d < maxd
  * - pos is outside the full cube
  * Combination of these conditions mean that checks against CUBE always
- * succeed. (And AIR always fails regardless of any conditions.
+ * succeed. (And AIR always fails regardless of any conditions.)
  *
  * For blocks with funny shapes, we do ray-AABB intersection:
  * https://education.siggraph.org/static/HyperGraph/raytrace/rtinter3.htm

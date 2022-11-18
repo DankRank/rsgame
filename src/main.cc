@@ -430,6 +430,7 @@ int main(int argc, char** argv)
 						const float acc = .1f;
 						const float limit = .1f;
 						want = normalize(want);
+						// NOTE: speed is limited along the acceleration vector to enable airstrafing
 						float v = dot(phys_velxz, want);
 						if (v < limit) {
 							phys_velxz += (v + acc < limit ? acc : limit - v)*want;
