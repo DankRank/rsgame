@@ -385,10 +385,11 @@ void draw_hud(int width, int height, uint8_t id, uint8_t data)
 		uint8_t tex = tiles::tex(id, 0, data);
 		float s = tex%16/16.f;
 		float t = tex/16/16.f;
-		vec3 ta(s,        t,        LIGHT_VAL(LIGHT_TOP));
-		vec3 tb(s,        t+1/16.f, LIGHT_VAL(LIGHT_TOP));
-		vec3 tc(s+1/16.f, t+1/16.f, LIGHT_VAL(LIGHT_TOP));
-		vec3 td(s+1/16.f, t,        LIGHT_VAL(LIGHT_TOP));
+		int light = tiles::render_type[id] == RenderType::WIRE ? LIGHT_WIRE15 : LIGHT_TOP;
+		vec3 ta(s,        t,        LIGHT_VAL(light));
+		vec3 tb(s,        t+1/16.f, LIGHT_VAL(light));
+		vec3 tc(s+1/16.f, t+1/16.f, LIGHT_VAL(light));
+		vec3 td(s+1/16.f, t,        LIGHT_VAL(light));
 		push_quad(verts, a, ta, b, tb, c, tc, d, td);
 		glBindBuffer(GL_ARRAY_BUFFER, handitem_vb);
 		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float)*verts.size(), verts.data());
