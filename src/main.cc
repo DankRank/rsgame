@@ -74,7 +74,12 @@ int main(int argc, char** argv)
 		shader_prologue = "#version 130\n";
 	}
 	int width = 854, height = 480;
-	window = SDL_CreateWindow("rsgame", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
+#ifdef RSGAME_NETCLIENT
+	const char *window_title = "rsgame (netclient)";
+#else
+	const char *window_title = "rsgame";
+#endif
+	window = SDL_CreateWindow(window_title, SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, width, height,
 		SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
 	if (!window) {
 		fprintf(stderr, "SDL_CreateWindow: %s\n", SDL_GetError());
@@ -159,23 +164,46 @@ int main(int argc, char** argv)
 	fprintf(stderr, "Loading level...\n");
 	Level level;
 #ifdef RSGAME_NETCLIENT
-	uint32_t x;
-	net_read(sock, &x, 4);
-	uint32_t xsize = ntohl(x);
-	net_read(sock, &x, 4);
-	uint32_t zsize = ntohl(x);
-	net_read(sock, &x, 4);
-	uint32_t zbits = ntohl(x);
-	level = Level(xsize, zsize, zbits);
-	int ofs = 0;
-	while (ofs < (int)level.buf.size()) {
-		int r = net_read(sock, level.buf.data()+ofs, level.buf.size()-ofs);
-		if (r < 0) {
-			net_perror("read");
+	{
+		uint8_t pbuf[2+17];
+		PacketWriter(pbuf)
+			.write8(C_ClientIntroduction)
+			.write32(RSGAME_NETPROTO)
+			.send(sock);
+		net_read(sock, pbuf, 2+17);
+		PacketReader pr(pbuf);
+		uint16_t plen = pr.read16();
+		if (!plen) {
+			fprintf(stderr, "Protocol error\n");
 			return 1;
 		}
-		ofs += r;
-		fprintf(stderr, "%d/%d\n", ofs, (int)level.buf.size());
+		uint16_t pid = pr.read8();
+		if (pid == B_Disconnect) {
+			fprintf(stderr, "Disconnected: %.*s\n", std::min(16, plen-1), &pbuf[3]);
+			return 1;
+		} else if (pid != S_ServerIntroduction) {
+			fprintf(stderr, "Protocol error\n");
+			return 1;
+		}
+		uint32_t proto = pr.read32();
+		if (proto != RSGAME_NETPROTO) {
+			fprintf(stderr, "Incompatible protocol %X instead of %X\n", proto, RSGAME_NETPROTO);
+			return 1;
+		}
+		uint32_t xsize = pr.read32();
+		uint32_t zsize = pr.read32();
+		uint32_t zbits = pr.read32();
+		level = Level(xsize, zsize, zbits);
+		int ofs = 0;
+		while (ofs < (int)level.buf.size()) {
+			int r = net_read(sock, level.buf.data()+ofs, level.buf.size()-ofs);
+			if (r < 0) {
+				net_perror("read");
+				return 1;
+			}
+			ofs += r;
+			fprintf(stderr, "%d/%d\n", ofs, (int)level.buf.size());
+		}
 	}
 #endif
 
@@ -255,8 +283,22 @@ int main(int argc, char** argv)
 	auto remove_block = [&](){
 		if (ray_valid) {
 			uint8_t old_id = level.get_tile_id(ray.x, ray.y, ray.z);
+#ifdef RSGAME_NETCLIENT
+			uint8_t old_data = level.get_tile_meta(ray.x, ray.y, ray.z);
+			uint8_t pbuf[2+9];
+			PacketWriter(pbuf)
+				.write8(C_ChangeBlock)
+				.write32(level.pos_to_index(ray.x, ray.y, ray.z))
+				.write8(old_id)
+				.write8(old_data)
+				.write8(0)
+				.write8(0)
+				.send(sock);
+			level.set_tile(ray.x, ray.y, ray.z, 0, 0);
+#else
 			level.set_tile(ray.x, ray.y, ray.z, 0, 0);
 			level.on_block_remove(ray.x, ray.y, ray.z, old_id);
+#endif
 		}
 	};
 	auto place_block = [&](){
@@ -280,8 +322,23 @@ int main(int argc, char** argv)
 					default: data = 5; break;
 				}
 			}
+#ifdef RSGAME_NETCLIENT
+			uint8_t old_id = level.get_tile_id(x, y, z);
+			uint8_t old_data = level.get_tile_meta(x, y, z);
+			uint8_t pbuf[2+9];
+			PacketWriter(pbuf)
+				.write8(C_ChangeBlock)
+				.write32(level.pos_to_index(x, y, z))
+				.write8(old_id)
+				.write8(old_data)
+				.write8(id_in_hand)
+				.write8(data)
+				.send(sock);
+			level.set_tile(x, y, z, id_in_hand, data);
+#else
 			level.set_tile(x, y, z, id_in_hand, data);
 			level.on_block_add(x, y, z, id_in_hand);
+#endif
 		}
 	};
 	while (is_running) {
@@ -324,6 +381,16 @@ int main(int argc, char** argv)
 				switch (ev.key.keysym.scancode) {
 					case SDL_SCANCODE_ESCAPE:
 					case SDL_SCANCODE_Q:
+#ifdef RSGAME_NETCLIENT
+						{
+							uint8_t buf[2+5];
+							PacketWriter(buf)
+								.write8(B_Disconnect)
+								.write_str("Quit", 4)
+								.send(sock);
+							net_close(sock);
+						}
+#endif
 						is_running = false;
 						break;
 					case SDL_SCANCODE_F10:
@@ -482,8 +549,78 @@ int main(int argc, char** argv)
 						phys_ground = false;
 					}
 				}
-				level.on_tick();
 				unprocessed_ms -= 50;
+#ifdef RSGAME_NETCLIENT
+				{
+					uint8_t pbuf[2+17];
+					PacketWriter(pbuf)
+						.write8(C_ChangePosition)
+						.write32(pos.x * 32)
+						.write32(pos.y * 32)
+						.write32(pos.z * 32)
+						.write16(yaw * 65535 / (2*glm::pi<float>()))
+						.write16(pitch * 65535 / (2*glm::pi<float>()))
+						.send(sock);
+				}
+				{
+					static uint8_t pbuf[2+65536];
+					static int ppos = 0;
+					net_nonblock(sock);
+					for (;;) {
+						if (ppos < 2) {
+							int r = net_read(sock, pbuf+ppos, 2-ppos);
+							if (r == -1 || r == 0) {
+								if (r && net_again())
+									break;
+								if (r)
+									net_perror("net_read");
+								return 1;
+							}
+							ppos += r;
+						} else {
+							int plen = pbuf[0]<<16 | pbuf[1];
+							if (!plen) {
+								ppos = 0;
+								continue;
+							}
+							int r = net_read(sock, pbuf+ppos, plen+2-ppos);
+							if (r == -1 || r == 0) {
+								if (r && net_again())
+									break;
+								if (r)
+									net_perror("net_read");
+								return 1;
+							}
+							ppos += r;
+							if (ppos == plen+2) {
+								PacketReader pr(pbuf+2);
+								switch (pr.read8()) {
+									case B_Disconnect:
+										fprintf(stderr, "Disconnected\n");
+										return 1;
+									case S_BlockUpdates:
+										for (int i = 0; i < (plen-1)/6; i++) {
+											uint32_t index = pr.read32();
+											uint8_t id = pr.read8();
+											uint8_t data = pr.read8();
+											glm::ivec3 bpos = level.index_to_pos(index);
+											level.set_tile(bpos.x, bpos.y, bpos.z, id, data);
+											rl->set_dirty(bpos.x, bpos.y, bpos.z);
+										}
+										break;
+									default:
+										fprintf(stderr, "Protocol error\n");
+										return 1;
+								}
+								ppos = 0;
+							}
+						}
+					}
+					net_block(sock);
+				}
+#else
+				level.on_tick();
+#endif
 			}
 		}
 

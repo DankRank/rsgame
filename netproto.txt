@@ -1,0 +1,54 @@
+Protocol version 0x20221119
+Each packet is prefixed by 16-bit length
+Lenght 0 packet is allowed as a keep-alive
+
+ClientIntroduction
+C: 0x00
+C: long proto version
+size 5
+
+ServerIntroduction
+S: 0x01
+C: long proto version
+S: long world x size
+S: long world z size
+S: long world z bits
+size 17
+the following is not accounted in the size
+S: world data x*y*z*3/2 bytes
+
+Disconnect
+C/S: 0x02
+C/S: string reason
+size 1 + x
+
+0x03 reserved
+0x04 reserved
+0x05 reserved
+
+ChangePosition
+C: 0x06
+C: long player x pos * 32
+C: long player y pos * 32
+C: long player z pos * 32
+C: short player yaw * 65535 / 2pi
+C: short player pitch * 65535 / 2pi
+size 17
+
+ChangeBlock
+C: 0x07
+C: long block index
+C: byte old id
+C: byte old data
+C: byte new id
+C: byte new data
+size 9
+
+BlockUpdates
+S: 0x08
+repeat {
+S: long block index
+S: byte new id
+S: byte old id
+}
+size 1 + 6x

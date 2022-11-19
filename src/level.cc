@@ -6,9 +6,10 @@
 #endif
 namespace rsgame {
 #ifdef RSGAME_SERVER
+void server_set_dirty(int x, int y, int z);
 struct RenderLevel {
 	void set_dirty(int x, int y, int z) {
-		(void)x; (void)y; (void)z;
+		server_set_dirty(x, y, z);
 	}
 };
 #endif
@@ -117,6 +118,16 @@ Level::Level(int xs, int zs, int zb) {
 		for (int j = 0; j < 16; j++)
 			set_tile(32+i, 0, 32+j, 35, color);
 }
+uint32_t Level::pos_to_index(int x, int y, int z) {
+	if (x < 0 || x > xsize-1 || z < 0 || z > zsize-1 || y < 0 || y > 127)
+		return -1;
+	return x << (zbits+7) | z << 7 | y;
+}
+glm::ivec3 Level::index_to_pos(uint32_t index) {
+	if (index == -1u)
+		return glm::ivec3(-1);
+	return glm::ivec3(index >> (zbits+7), index & 127, index >> 7 & ((1 << zbits)-1));
+}
 uint8_t Level::get_tile_id(int x, int y, int z) {
 	if (x < 0 || x > xsize-1 || z < 0 || z > zsize-1 || y < 0 || y > 127)
 		return 0;
@@ -128,7 +139,7 @@ uint8_t Level::get_tile_meta(int x, int y, int z) {
 	return data[x << (zbits+6) | z << 6 | y >> 1]>>(y<<2 & 4) & 15;
 }
 void Level::set_tile(int x, int y, int z, uint8_t id, uint8_t metadata) {
-	if (x < 0 || x > xsize-1 || z < 0 || z > zsize-1 || y < 0 || y > 127)
+	if (x < 0 || x > xsize-1 || z < 0 || z > zsize-1 || y < 0 || y > 127 || metadata > 15)
 		return;
 	int idx = x << (zbits+7) | z << 7 | y;
 	blocks[idx] = id;
@@ -136,8 +147,9 @@ void Level::set_tile(int x, int y, int z, uint8_t id, uint8_t metadata) {
 	if (y&1)
 		meta = meta&0x0F | metadata<<4;
 	else
-		meta = meta&0xF0 | metadata&15;
+		meta = meta&0xF0 | metadata;
 }
+#ifndef RSGAME_NETCLIENT
 /* Scheduled update system
  * Up to a 1000 scheduled updates are processed every tick.
  * The updates are ordered by their target tick and by
@@ -463,4 +475,5 @@ void Level::wire_propagation(int x, int y, int z, int sx, int sy, int sz) {
 		}
 	}
 }
+#endif
 }
