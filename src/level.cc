@@ -124,7 +124,7 @@ uint32_t Level::pos_to_index(int x, int y, int z) {
 	return x << (zbits+7) | z << 7 | y;
 }
 glm::ivec3 Level::index_to_pos(uint32_t index) {
-	if (index == -1u)
+	if (index == (uint32_t)-1)
 		return glm::ivec3(-1);
 	return glm::ivec3(index >> (zbits+7), index & 127, index >> 7 & ((1 << zbits)-1));
 }

@@ -60,6 +60,8 @@ namespace rsgame {
 #include <stdio.h>
 #undef near
 #undef far
+#undef min
+#undef max
 namespace rsgame {
 	inline int net_close(int fd) {
 		return closesocket(fd);
