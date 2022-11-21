@@ -4,7 +4,34 @@
 #include "tile.hh"
 #include "net.hh"
 #include <stdio.h>
+#include <time.h>
 namespace rsgame {
+#ifndef WIN32
+timespec time0;
+void time_init() {
+	// checking for errors during init only seems to be sufficient (SDL does it like that)
+	if (clock_gettime(CLOCK_MONOTONIC, &time0) == -1) {
+		perror("clock_gettime");
+		exit(1);
+	}
+}
+uint64_t time_ticks() {
+	timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	return (uint64_t)((int64_t)(now.tv_sec - time0.tv_sec)*1000 + (int64_t)(now.tv_nsec - time0.tv_nsec)/1000000);
+}
+#else
+LARGE_INTEGER time0, timef;
+void time_init() {
+	QueryPerformanceFrequency(&timef);
+	QueryPerformanceCounter(&time0);
+}
+uint64_t time_ticks() {
+	LARGE_INTEGER now;
+	QueryPerformanceCounter(&now);
+	return (uint64_t)((now.QuadPart - time0.QuadPart)*1000 / timef.QuadPart);
+}
+#endif
 struct Connection {
 	int sock;
 	bool dead = false;
@@ -142,7 +169,7 @@ struct Poll {
 			pollfds[i+1].fd = conns[i]->sock;
 			pollfds[i+1].events = conns[i]->writebuf.size() ? POLLIN | POLLOUT : POLLIN;
 		}
-		::poll(pollfds, conns.size() + 1, 2000);
+		::poll(pollfds, conns.size() + 1, 1);
 		needs_accept = pollfds[0].revents & POLLIN;
 		next_index = 1;
 	}
@@ -277,6 +304,7 @@ struct RenderLevel {
 };
 int main(int argc, char** argv)
 {
+	time_init();
 	if (net_startup() == -1) {
 		fprintf(stderr, "WSAStartup failed\n");
 		return 1;
@@ -338,23 +366,9 @@ int main(int argc, char** argv)
 	Level level;
 	RenderLevel rl;
 	level.rl = &rl;
-	auto send_updates = [&level]() {
-		uint8_t pbuf[65536];
-		auto it = block_updates.begin();
-		while (it != block_updates.end()) {
-			PacketWriter pw(pbuf);
-			pw.write8(S_BlockUpdates);
-			while (pw.pos < 65536 - 6 && it != block_updates.end()) {
-				glm::ivec3 pos = *it++;
-				pw.write32(level.pos_to_index(pos.x, pos.y, pos.z));
-				pw.write8(level.get_tile_id(pos.x, pos.y, pos.z));
-				pw.write8(level.get_tile_meta(pos.x, pos.y, pos.z));
-			}
-			for (auto it = conns.begin(); it != conns.end(); ++it)
-				(*it)->send(pw);
-		}
-		block_updates.clear();
-	};
+
+	uint64_t unprocessed_ms = 0;
+	uint32_t last_frame = time_ticks();
 	for (;;) {
 		poller.poll();
 		Connection *conn;
@@ -397,8 +411,6 @@ int main(int argc, char** argv)
 						conn->z = pr.read32();
 						conn->yaw = pr.read16();
 						conn->pitch = pr.read16();
-						level.on_tick();
-						send_updates();
 						break;
 					}
 					case C_ChangeBlock: {
@@ -418,13 +430,36 @@ int main(int argc, char** argv)
 								level.on_block_add(pos.x, pos.y, pos.z, new_id);
 							else
 								level.on_block_remove(pos.x, pos.y, pos.z, old_id);
-							send_updates();
 						}
 						break;
 					}
 					}
 				}
 			}
+		}
+		uint64_t current_frame = time_ticks();
+		unprocessed_ms += current_frame - last_frame;
+		last_frame = current_frame;
+		if (unprocessed_ms > 50) {
+			while (unprocessed_ms > 50) {
+				level.on_tick();
+				unprocessed_ms -= 50;
+			}
+			uint8_t pbuf[65536];
+			auto it = block_updates.begin();
+			while (it != block_updates.end()) {
+				PacketWriter pw(pbuf);
+				pw.write8(S_BlockUpdates);
+				while (pw.pos < 65536 - 6 && it != block_updates.end()) {
+					glm::ivec3 pos = *it++;
+					pw.write32(level.pos_to_index(pos.x, pos.y, pos.z));
+					pw.write8(level.get_tile_id(pos.x, pos.y, pos.z));
+					pw.write8(level.get_tile_meta(pos.x, pos.y, pos.z));
+				}
+				for (auto it = conns.begin(); it != conns.end(); ++it)
+					(*it)->send(pw);
+			}
+			block_updates.clear();
 		}
 		poller.process_writes();
 		accept_connections();
