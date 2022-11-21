@@ -32,12 +32,15 @@ uint64_t time_ticks() {
 	return (uint64_t)((now.QuadPart - time0.QuadPart)*1000 / timef.QuadPart);
 }
 #endif
+int next_eid = 0;
 struct Connection {
+	Connection(int sock) :sock(sock), eid(next_eid++) {}
 	int sock;
 	bool dead = false;
 	bool logged_in = false;
 	int x = 0, y = 0, z = 0;
 	short yaw = 0, pitch = 0;
+	int eid = 0;
 	std::vector<uint8_t> writebuf;
 	uint8_t readbuf[2+65536];
 	int readlen;
@@ -273,8 +276,7 @@ void accept_connections() {
 				net_write(sock, "\x00\x0C\x02Server Busy", 14);
 				net_close(sock);
 			} else {
-				Connection *conn = new Connection();
-				conn->sock = sock;
+				Connection *conn = new Connection(sock);
 				poller.add_conn(conn);
 				conns.push_back(conn);
 			}
@@ -283,10 +285,20 @@ void accept_connections() {
 }
 void close_dead_connections() {
 	for (size_t i = 0; i < conns.size(); i++) {
-		if (conns[i]->dead) {
-			poller.del_conn(conns[i]);
-			net_close(conns[i]->sock);
-			delete conns[i];
+		Connection *conn = conns[i];
+		if (conn->dead) {
+			if (conn->logged_in) {
+				uint8_t pbuf[2+5];
+				PacketWriter pw(pbuf);
+				pw.write8(S_EntityLeave);
+				pw.write32(conn->eid);
+				for (Connection *conn : conns)
+					if (conn->logged_in)
+						conn->send(pw);
+			}
+			poller.del_conn(conn);
+			net_close(conn->sock);
+			delete conn;
 			conns.erase(conns.begin()+i);
 			i--;
 		}
@@ -377,23 +389,38 @@ int main(int argc, char** argv)
 				int plen = conn->readlen - 2;
 				PacketReader pr(conn->readbuf + 2);
 				if (!conn->logged_in) {
-					uint8_t buf[17];
+					uint8_t pbuf[2+21];
 					if (plen != 5 || pr.read8() != C_ClientIntroduction || pr.read32() != RSGAME_NETPROTO) {
-						conn->send(PacketWriter(buf)
+						conn->send(PacketWriter(pbuf)
 							.write8(B_Disconnect)
 							.write_str("Bad proto", 9));
 						conn->dead = true;
 					leave:
 						break;
 					}
-					conn->send(PacketWriter(buf)
+					conn->send(PacketWriter(pbuf)
 						.write8(S_ServerIntroduction)
 						.write32(RSGAME_NETPROTO)
+						.write32(conn->eid)
 						.write32(level.xsize)
 						.write32(level.zsize)
 						.write32(level.zbits));
 					conn->write(level.buf.data(), level.buf.size());
+					{
+						PacketWriter pw(pbuf);
+						pw.write8(S_EntityEnter);
+						pw.write32(conn->eid);
+						for (Connection *conn : conns)
+							if (conn->logged_in)
+								conn->send(pw);
+					}
 					conn->logged_in = true;
+					for (Connection *conn2 : conns)
+						if (conn2->logged_in) {
+							conn->send(PacketWriter(pbuf)
+								.write8(S_EntityEnter)
+								.write32(conn2->eid));
+						}
 				} else {
 					if (plen == 0)
 						continue;
@@ -446,8 +473,7 @@ int main(int argc, char** argv)
 				unprocessed_ms -= 50;
 			}
 			uint8_t pbuf[65536];
-			auto it = block_updates.begin();
-			while (it != block_updates.end()) {
+			for (auto it = block_updates.begin(); it != block_updates.end(); ) {
 				PacketWriter pw(pbuf);
 				pw.write8(S_BlockUpdates);
 				while (pw.pos < 65536 - 6 && it != block_updates.end()) {
@@ -456,10 +482,27 @@ int main(int argc, char** argv)
 					pw.write8(level.get_tile_id(pos.x, pos.y, pos.z));
 					pw.write8(level.get_tile_meta(pos.x, pos.y, pos.z));
 				}
-				for (auto it = conns.begin(); it != conns.end(); ++it)
-					(*it)->send(pw);
+				for (Connection *conn : conns)
+					if (conn->logged_in)
+						conn->send(pw);
 			}
 			block_updates.clear();
+			for (auto it = conns.begin(); it != conns.end(); ) {
+				PacketWriter pw(pbuf);
+				pw.write8(S_EntityUpdates);
+				while (pw.pos < 65536 - 20 && it != conns.end()) {
+					Connection *conn = *it++;
+					pw.write32(conn->eid);
+					pw.write32(conn->x);
+					pw.write32(conn->y);
+					pw.write32(conn->z);
+					pw.write16(conn->yaw);
+					pw.write16(conn->pitch);
+				}
+				for (Connection *conn : conns)
+					if (conn->logged_in)
+						conn->send(pw);
+			}
 		}
 		poller.process_writes();
 		accept_connections();

@@ -205,6 +205,40 @@ void RenderLevel::draw() {
 		//	printf("check %i failed\n", i);
 	}
 }
+#ifdef RSGAME_NETCLIENT
+static GLuint player_va, player_vb;
+void init_player()
+{
+	glGenVertexArrays(1, &player_va);
+	glGenBuffers(1, &player_vb);
+	glBindBuffer(GL_ARRAY_BUFFER, player_vb);
+	glBindVertexArray(player_va);
+	glEnableVertexAttribArray(FLAT_I_POSITION);
+	glVertexAttribPointer(FLAT_I_POSITION, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
+	const float r2 = glm::root_two<float>();
+	vec3 player_buf[6] = {
+		vec3(0, 0, 0),
+		vec3(0, 0, -r2/2),
+		vec3(-r2/8, 0, -r2/2 + r2/8),
+		vec3(r2/8, 0, -r2/2 + r2/8),
+	};
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*6*3, value_ptr(player_buf[0]), GL_STREAM_DRAW);
+}
+void draw_player_start()
+{
+	glUseProgram(flat_prog);
+	glBindVertexArray(player_va);
+	glLineWidth(4.f);
+	glVertexAttrib4f(FLAT_I_COLOR, .0f, .0f, .0f, .1f);
+}
+void draw_player(const mat4 &model)
+{
+	mat4 mvp = viewproj*model;
+	glUniformMatrix4fv(0, 1, GL_FALSE, value_ptr(mvp));
+	static const uint8_t lines[6] = { 0, 1, 1, 2, 1, 3 };
+	glDrawElements(GL_LINES, 6, GL_UNSIGNED_BYTE, lines);
+}
+#endif
 static GLuint raytarget_va, raytarget_vb;
 static GLuint crosshair_va, crosshair_vb;
 static GLuint handitem_va, handitem_vb;

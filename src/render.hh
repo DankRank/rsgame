@@ -44,6 +44,11 @@ public:
 	};
 	extern GLuint terrain_prog;
 	extern GLuint flat_prog;
+#ifdef RSGAME_NETCLIENT
+	void init_player();
+	void draw_player_start();
+	void draw_player(const mat4 &model);
+#endif
 	void init_raytarget();
 	void draw_raytarget(const RaycastResult &ray);
 	void init_hud();

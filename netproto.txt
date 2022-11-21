@@ -1,4 +1,4 @@
-Protocol version 0x20221119
+Protocol version 0x20221121
 Each packet is prefixed by 16-bit length
 Lenght 0 packet is allowed as a keep-alive
 
@@ -9,11 +9,12 @@ size 5
 
 ServerIntroduction
 S: 0x01
-C: long proto version
+S: long proto version
+S: long player eid
 S: long world x size
 S: long world z size
 S: long world z bits
-size 17
+size 21
 the following is not accounted in the size
 S: world data x*y*z*3/2 bytes
 
@@ -52,3 +53,25 @@ S: byte new id
 S: byte old id
 }
 size 1 + 6x
+
+EntityEnter
+S: 0x09
+S: long id
+size 5
+
+EntityLeave
+S: 0x0A
+S: long id
+size 5
+
+EntityUpdates
+S: 0x0B
+repeat {
+S: long id
+S: long player x pos * 32
+S: long player y pos * 32
+S: long player z pos * 32
+S: short player yaw * 65535 / 2pi
+S: short player pitch * 65535 / 2pi
+}
+size 1 + 20x

@@ -101,7 +101,7 @@ namespace rsgame {
 }
 #endif
 // rsgame specific helpers
-#define RSGAME_NETPROTO 0x20221119
+#define RSGAME_NETPROTO 0x20221122
 namespace rsgame {
 	enum {
 		C_ClientIntroduction = 0,
@@ -109,7 +109,10 @@ namespace rsgame {
 		B_Disconnect,
 		C_ChangePosition = 6,
 		C_ChangeBlock,
-		S_BlockUpdates
+		S_BlockUpdates,
+		S_EntityEnter,
+		S_EntityLeave,
+		S_EntityUpdates,
 	};
 	struct PacketReader {
 		uint8_t *buf;

@@ -20,6 +20,17 @@ SDL_Window* window = nullptr;
 bool is_running = true;
 mat4 viewproj;
 Frustum viewfrustum;
+#if RSGAME_NETCLIENT
+int my_eid = -1;
+struct Entity {
+	float x, y, z, yaw, pitch;
+	mat4 model;
+	void gen_model() {
+		model = glm::rotate(glm::rotate(glm::translate(mat4(1), vec3(x, y, z)), yaw, vec3(0.f, 1.f, 0.f)), pitch, vec3(1.f, 0.f, 0.f));
+	}
+};
+std::unordered_map<int, Entity> entities;
+#endif
 int main(int argc, char** argv)
 {
 	tiles::init();
@@ -165,12 +176,12 @@ int main(int argc, char** argv)
 	Level level;
 #ifdef RSGAME_NETCLIENT
 	{
-		uint8_t pbuf[2+17];
+		uint8_t pbuf[2+21];
 		PacketWriter(pbuf)
 			.write8(C_ClientIntroduction)
 			.write32(RSGAME_NETPROTO)
 			.send(sock);
-		net_read(sock, pbuf, 2+17);
+		net_read(sock, pbuf, 2+21);
 		PacketReader pr(pbuf);
 		uint16_t plen = pr.read16();
 		if (!plen) {
@@ -190,6 +201,11 @@ int main(int argc, char** argv)
 			fprintf(stderr, "Incompatible protocol %X instead of %X\n", proto, RSGAME_NETPROTO);
 			return 1;
 		}
+		if (plen != 21) {
+			fprintf(stderr, "Bad packet size\n");
+			return 1;
+		}
+		my_eid = pr.read32();
 		uint32_t xsize = pr.read32();
 		uint32_t zsize = pr.read32();
 		uint32_t zbits = pr.read32();
@@ -236,6 +252,9 @@ int main(int argc, char** argv)
 	vec3 pos{0};
 	vec3 look{0};
 
+#ifdef RSGAME_NETCLIENT
+	init_player();
+#endif
 	init_raytarget();
 	init_hud();
 
@@ -608,6 +627,30 @@ int main(int argc, char** argv)
 											rl->set_dirty(bpos.x, bpos.y, bpos.z);
 										}
 										break;
+									case S_EntityEnter: {
+										uint32_t eid = pr.read32();
+										entities.emplace(eid, Entity());
+										break;
+									}
+									case S_EntityLeave: {
+										uint32_t eid = pr.read32();
+										entities.erase(eid);
+										break;
+									}
+									case S_EntityUpdates:
+										for (int i = 0; i < (plen-1)/20; i++) {
+											uint32_t eid = pr.read32();
+											auto it = entities.find(eid);
+											if (it != entities.end()) {
+												it->second.x = (int32_t)pr.read32()/32.f;
+												it->second.y = (int32_t)pr.read32()/32.f;
+												it->second.z = (int32_t)pr.read32()/32.f;
+												it->second.yaw = pr.read16()*2.f*glm::pi<float>()/65535;
+												it->second.pitch = pr.read16()*2.f*glm::pi<float>()/65535;
+												it->second.gen_model();
+											}
+										}
+										break;
 									default:
 										fprintf(stderr, "Protocol error\n");
 										return 1;
@@ -639,7 +682,14 @@ int main(int argc, char** argv)
 		viewfrustum.from_viewproj(pos, look, vec3(0, 1, 0), vfov, aspect, near, far);
 		rl->update();
 		rl->draw();
-
+#ifdef RSGAME_NETCLIENT
+		draw_player_start();
+		for (auto &ent: entities) {
+			if (ent.first != my_eid) {
+				draw_player(ent.second.model);
+			}
+		}
+#endif
 		raycast_in_physics = false;
 		ray_valid = raycast(&level, pos, look, 10., ray);
 		if (ray_valid)
