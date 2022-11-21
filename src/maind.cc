@@ -5,6 +5,266 @@
 #include "net.hh"
 #include <stdio.h>
 namespace rsgame {
+struct Connection {
+	int sock;
+	bool dead = false;
+	bool logged_in = false;
+	int x = 0, y = 0, z = 0;
+	short yaw = 0, pitch = 0;
+	std::vector<uint8_t> writebuf;
+	uint8_t readbuf[2+65536];
+	int readlen;
+private:
+	int readpos = 0;
+public:
+	bool read() {
+		if (dead)
+			return false;
+		for (;;) {
+			if (readpos < 2) {
+				int r = net_read(sock, readbuf + readpos, 2 - readpos);
+				if (r == -1) {
+					if (net_again()) {
+						return false;
+					} else {
+						net_perror("read");
+						dead = true;
+						return false;
+					}
+				} else if (r == 0) {
+					fprintf(stderr, "read: returned 0\n");
+					dead = true;
+					return false;
+				} else {
+					readpos += r;
+				}
+			} else {
+				int plen = readbuf[0] << 8 | readbuf[1];
+				int r = net_read(sock, readbuf + readpos, 2 + plen - readpos);
+				if (r == -1) {
+					if (net_again()) {
+						return false;
+					} else {
+						net_perror("read");
+						dead = true;
+						return false;
+					}
+				} else if (r == 0) {
+					fprintf(stderr, "read: returned 0\n");
+					dead = true;
+					return false;
+				} else {
+					readpos += r;
+					if (readpos == 2 + plen) {
+						readlen = 2 + plen;
+						readpos = 0;
+						return true;
+					}
+				}
+			}
+		}
+	}
+	void write(const uint8_t *buf, int len) {
+		if (dead)
+			return;
+		for (;;) {
+			if (!writebuf.size()) {
+				if (len) {
+					int r = net_write(sock, buf, len);
+					if (r == -1) {
+						if (net_again()) {
+							writebuf.resize(len);
+							memcpy(writebuf.data(), buf, len);
+						} else {
+							net_perror("write");
+							dead = true;
+						}
+						return;
+					} else {
+						assert(r);
+						if (r == len)
+							return;
+						buf += r;
+						len -= r;
+					}
+				} else {
+					return;
+				}
+			} else {
+				int r = net_write(sock, writebuf.data(), writebuf.size());
+				if (r == -1) {
+					if (net_again()) {
+						writebuf.resize(writebuf.size() + len);
+						memcpy(writebuf.data() + writebuf.size(), buf, len);
+					} else {
+						net_perror("write");
+						dead = true;
+					}
+					return;
+				} else {
+					assert(r);
+					if (r != (int)writebuf.size()) {
+						memmove(writebuf.data(), writebuf.data()+r, writebuf.size() - r);
+						writebuf.resize(writebuf.size() - r);
+					} else {
+						writebuf.clear();
+					}
+				}
+			}
+		}
+	}
+	void send(const PacketWriter &pw) {
+		pw.buf[0] = (pw.pos-2)>>16;
+		pw.buf[1] = (pw.pos-2);
+		write(pw.buf, pw.pos);
+	}
+};
+std::vector<Connection*> conns;
+/* Each poll cycle looks like so:
+ * - poll
+ * - read and process packets
+ * - flush write buffers
+ * - accept new connections
+ * - close connections marked as dead
+ */
+#ifndef WIN32
+struct Poll {
+	struct pollfd pollfds[256];
+	int listenfd;
+	bool needs_accept = false;
+	bool can_accept() {
+		return 1+conns.size() < 256;
+	}
+	void poll() {
+		pollfds[0].fd = listenfd;
+		pollfds[0].events = POLLIN;
+		for (size_t i = 0; i < conns.size(); i++) {
+			pollfds[i+1].fd = conns[i]->sock;
+			pollfds[i+1].events = conns[i]->writebuf.size() ? POLLIN | POLLOUT : POLLIN;
+		}
+		::poll(pollfds, conns.size() + 1, 2000);
+		needs_accept = pollfds[0].revents & POLLIN;
+		next_index = 1;
+	}
+	size_t next_index;
+	Connection *next_to_read() {
+		while (next_index++ < conns.size() + 1) {
+			if (pollfds[next_index-1].revents & POLLIN) {
+				return conns[next_index-2];
+			}
+		}
+		return nullptr;
+	}
+	void process_writes() {
+		for (size_t i = 1; i < conns.size() + 1; i++) {
+			if (pollfds[i].revents & POLLOUT) {
+				conns[i-1]->write(0, 0);
+			}
+		}
+	}
+	void add_conn(Connection *conn) {
+		(void)conn;
+	}
+	void del_conn(Connection *conn) {
+		(void)conn;
+	}
+};
+#else
+struct Poll {
+	std::unordered_map<int, Connection*> sock_to_conn;
+	fd_set readfds, writefds;
+	int listenfd;
+	bool needs_accept = false;
+	bool can_accept() {
+		return 1+conns.size() < FD_SETSIZE;
+	}
+	void poll() {
+		readfds.fd_count = 0;
+		writefds.fd_count = 0;
+		readfds.fd_array[readfds.fd_count++] = listenfd;
+		for (size_t i = 0; i < conns.size(); i++) {
+			readfds.fd_array[readfds.fd_count++] = conns[i]->sock;
+			if (conns[i]->writebuf.size())
+				writefds.fd_array[writefds.fd_count++] = conns[i]->sock;
+		}
+		timeval tv;
+		tv.tv_sec = 2;
+		tv.tv_usec = 0;
+		select(0, &readfds, &writefds, 0, &tv);
+		needs_accept = false;
+		next_index = 0;
+	}
+	size_t next_index;
+	Connection *next_to_read() {
+		while (next_index++ < readfds.fd_count) {
+			if (readfds.fd_array[next_index-1] == (SOCKET)listenfd) {
+				needs_accept = true;
+			} else {
+				auto it = sock_to_conn.find(readfds.fd_array[next_index-1]);
+				assert(it != sock_to_conn.end());
+				if (it != sock_to_conn.end())
+					return it->second;
+			}
+		}
+		return nullptr;
+	}
+	void process_writes() {
+		for (size_t i = 0; i < writefds.fd_count; i++) {
+			auto it = sock_to_conn.find(writefds.fd_array[i]);
+			assert(it != sock_to_conn.end());
+			if (it != sock_to_conn.end())
+				it->second->write(0, 0);
+		}
+	}
+	void add_conn(Connection *conn) {
+		sock_to_conn.emplace(conn->sock, conn);
+	}
+	void del_conn(Connection *conn) {
+		sock_to_conn.erase(conn->sock);
+	}
+};
+#endif
+Poll poller;
+void accept_connections() {
+	if (poller.needs_accept) {
+		for (;;) {
+			int sock = accept(poller.listenfd, NULL, NULL);
+			if (sock == -1) {
+				if (net_again()) {
+					break;
+				} else {
+					net_perror("accept");
+					exit(1);
+				}
+			}
+			if (net_nonblock(sock) == -1) {
+				net_perror("net_nonblock");
+				net_close(sock);
+				continue;
+			}
+			if (!poller.can_accept()) {
+				net_write(sock, "\x00\x0C\x02Server Busy", 14);
+				net_close(sock);
+			} else {
+				Connection *conn = new Connection();
+				conn->sock = sock;
+				poller.add_conn(conn);
+				conns.push_back(conn);
+			}
+		}
+	}
+}
+void close_dead_connections() {
+	for (size_t i = 0; i < conns.size(); i++) {
+		if (conns[i]->dead) {
+			poller.del_conn(conns[i]);
+			net_close(conns[i]->sock);
+			delete conns[i];
+			conns.erase(conns.begin()+i);
+			i--;
+		}
+	}
+}
 std::vector<glm::ivec3> block_updates;
 void server_set_dirty(int x, int y, int z)
 {
@@ -68,106 +328,107 @@ int main(int argc, char** argv)
 		net_perror("listen");
 		return 1;
 	}
+	if (net_nonblock(listenfd) == -1) {
+		net_perror("net_nonblock");
+		return 1;
+	}
+	poller.listenfd = listenfd;
+	fprintf(stderr, "Listening...\n");
 
 	Level level;
 	RenderLevel rl;
 	level.rl = &rl;
+	auto send_updates = [&level]() {
+		uint8_t pbuf[65536];
+		auto it = block_updates.begin();
+		while (it != block_updates.end()) {
+			PacketWriter pw(pbuf);
+			pw.write8(S_BlockUpdates);
+			while (pw.pos < 65536 - 6 && it != block_updates.end()) {
+				glm::ivec3 pos = *it++;
+				pw.write32(level.pos_to_index(pos.x, pos.y, pos.z));
+				pw.write8(level.get_tile_id(pos.x, pos.y, pos.z));
+				pw.write8(level.get_tile_meta(pos.x, pos.y, pos.z));
+			}
+			for (auto it = conns.begin(); it != conns.end(); ++it)
+				(*it)->send(pw);
+		}
+		block_updates.clear();
+	};
 	for (;;) {
-		int sock = accept(listenfd, NULL, NULL);
-		{
-			uint8_t buf[17];
-			net_read(sock, buf, 2+5);
-			PacketReader pr(buf);
-			if (pr.read16() != 5 || pr.read8() != C_ClientIntroduction || pr.read32() != RSGAME_NETPROTO) {
-				PacketWriter(buf)
-					.write8(B_Disconnect)
-					.write_str("Bad proto", 9)
-					.send(sock);
-				net_close(sock);
-				continue;
-			}
-			PacketWriter(buf)
-				.write8(S_ServerIntroduction)
-				.write32(RSGAME_NETPROTO)
-				.write32(level.xsize)
-				.write32(level.zsize)
-				.write32(level.zbits)
-				.send(sock);
-			net_write(sock, level.buf.data(), level.buf.size());
-		}
-		auto send_updates = [&]() {
-			uint8_t pbuf[65536];
-			auto it = block_updates.begin();
-			while (it != block_updates.end()) {
-				PacketWriter pw(pbuf);
-				pw.write8(S_BlockUpdates);
-				while (pw.pos < 65536 - 6 && it != block_updates.end()) {
-					glm::ivec3 pos = *it++;
-					pw.write32(level.pos_to_index(pos.x, pos.y, pos.z));
-					pw.write8(level.get_tile_id(pos.x, pos.y, pos.z));
-					pw.write8(level.get_tile_meta(pos.x, pos.y, pos.z));
-				}
-				pw.send(sock);
-			}
-			block_updates.clear();
-		};
-		for (;;) {
-			uint16_t plen;
-			int r = net_read(sock, &plen, 2);
-			if (r == 0) {
-				break;
-			}
-			plen = ntohs(plen);
-			if (!plen)
-				continue;
-			uint8_t pbuf[65536];
-			net_read(sock, pbuf, plen);
-			PacketReader pr(pbuf);
-			switch (pr.read8()) {
-			case B_Disconnect: {
-				fprintf(stderr, "Disconnected: %.*s\n", plen-1, &pbuf[1]);
-				goto leave;
-			}
-			case C_ChangePosition: {
-				if (plen < 17)
-					break;
-#if 0
-				int x = pr.read32();
-				int y = pr.read32();
-				int z = pr.read32();
-				short yaw = pr.read16();
-				short pitch = pr.read16();
-				printf("%f %f %f %f %f\n", x/32.f, y/32.f, z/32.f, yaw*2.f*glm::pi<float>()/65535, pitch*2.f*glm::pi<float>()/65535);
-#endif
-				level.on_tick();
-				send_updates();
-				break;
-			}
-			case C_ChangeBlock: {
-				if (plen < 8)
-					break;
-				uint32_t index = pr.read32();
-				uint8_t old_id = pr.read8();
-				uint8_t old_data = pr.read8();
-				uint8_t new_id = pr.read8();
-				uint8_t new_data = pr.read8();
+		poller.poll();
+		Connection *conn;
+		while ((conn = poller.next_to_read())) {
+			while (conn->read()) {
+				int plen = conn->readlen - 2;
+				PacketReader pr(conn->readbuf + 2);
+				if (!conn->logged_in) {
+					uint8_t buf[17];
+					if (plen != 5 || pr.read8() != C_ClientIntroduction || pr.read32() != RSGAME_NETPROTO) {
+						conn->send(PacketWriter(buf)
+							.write8(B_Disconnect)
+							.write_str("Bad proto", 9));
+						conn->dead = true;
+					leave:
+						break;
+					}
+					conn->send(PacketWriter(buf)
+						.write8(S_ServerIntroduction)
+						.write32(RSGAME_NETPROTO)
+						.write32(level.xsize)
+						.write32(level.zsize)
+						.write32(level.zbits));
+					conn->write(level.buf.data(), level.buf.size());
+					conn->logged_in = true;
+				} else {
+					if (plen == 0)
+						continue;
+					switch (pr.read8()) {
+					case B_Disconnect: {
+						fprintf(stderr, "Disconnected: %.*s\n", plen-1, &conn->readbuf[3]);
+						conn->dead = true;
+						goto leave;
+					}
+					case C_ChangePosition: {
+						if (plen < 17)
+							break;
+						conn->x = pr.read32();
+						conn->y = pr.read32();
+						conn->z = pr.read32();
+						conn->yaw = pr.read16();
+						conn->pitch = pr.read16();
+						level.on_tick();
+						send_updates();
+						break;
+					}
+					case C_ChangeBlock: {
+						if (plen < 8)
+							break;
+						uint32_t index = pr.read32();
+						uint8_t old_id = pr.read8();
+						uint8_t old_data = pr.read8();
+						uint8_t new_id = pr.read8();
+						uint8_t new_data = pr.read8();
 
-				glm::ivec3 pos = level.index_to_pos(index);
-				if (old_id == level.get_tile_id(pos.x, pos.y, pos.z) &&
-						old_data == level.get_tile_meta(pos.x, pos.y, pos.z)) {
-					level.set_tile(pos.x, pos.y, pos.z, new_id, new_data);
-					if (new_id != 0)
-						level.on_block_add(pos.x, pos.y, pos.z, new_id);
-					else
-						level.on_block_remove(pos.x, pos.y, pos.z, old_id);
-					send_updates();
+						glm::ivec3 pos = level.index_to_pos(index);
+						if (old_id == level.get_tile_id(pos.x, pos.y, pos.z) &&
+								old_data == level.get_tile_meta(pos.x, pos.y, pos.z)) {
+							level.set_tile(pos.x, pos.y, pos.z, new_id, new_data);
+							if (new_id != 0)
+								level.on_block_add(pos.x, pos.y, pos.z, new_id);
+							else
+								level.on_block_remove(pos.x, pos.y, pos.z, old_id);
+							send_updates();
+						}
+						break;
+					}
+					}
 				}
-				break;
-			}
 			}
 		}
-	leave:
-		net_close(sock);
+		poller.process_writes();
+		accept_connections();
+		close_dead_connections();
 	}
 	return 0;
 }

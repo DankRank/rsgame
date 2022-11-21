@@ -10,59 +10,94 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <errno.h>
-#define net_read read
-#define net_write write
-#define net_close close
-#define net_setsockopt setsockopt
-#define net_startup() 0
-inline int net_nonblock(int sock) {
-	int flags = fcntl(sock, F_GETFL);
-	if (flags == -1)
-		return -1;
-	return fcntl(sock, F_SETFL, flags | O_NONBLOCK);
-}
-inline int net_block(int sock) {
-	int flags = fcntl(sock, F_GETFL);
-	if (flags == -1)
-		return -1;
-	return fcntl(sock, F_SETFL, flags & ~O_NONBLOCK);
-}
-#define net_again() (errno == EAGAIN)
+#include <poll.h>
 #include <stdio.h>
-#define net_perror perror
+namespace rsgame {
+	inline int net_close(int fd) {
+		return close(fd);
+	}
+	inline int net_read(int fd, void *buf, size_t len) {
+		return read(fd, buf, len);
+	}
+	inline int net_write(int fd, const void *buf, size_t len) {
+		return write(fd, buf, len);
+	}
+	inline int net_setsockopt(int fd, int level, int optname, const void *optval, int optlen) {
+		return setsockopt(fd, level, optname, optval, optlen);
+	}
+	inline int net_startup() {
+		return 0;
+	}
+	inline int net_nonblock(int sock) {
+		int flags = fcntl(sock, F_GETFL);
+		if (flags == -1)
+			return -1;
+		return fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+	}
+	inline int net_block(int sock) {
+		int flags = fcntl(sock, F_GETFL);
+		if (flags == -1)
+			return -1;
+		return fcntl(sock, F_SETFL, flags & ~O_NONBLOCK);
+	}
+	inline bool net_again() {
+		return errno == EAGAIN;
+	}
+	inline void net_perror(const char *s) {
+		perror(s);
+	}
+}
 #else
+/* FD_SETSIZE can be raised on Windows according to KB111856.
+ * Actually pretty much every operating system allows redefining it. Linux
+ * headers are the most notable exception, though the kernel itself has no
+ * limitation on the set size. The only OS that I know of that has a hardcoded
+ * FD_SETSIZE in the kernel is 4.4BSD. */
+#define FD_SETSIZE 256
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <stdio.h>
 #undef near
 #undef far
-#define net_close closesocket
-#define net_read(a,b,c) recv((a), (char*)(void*)(b), (c), 0)
-#define net_write(a,b,c) send((a), (char*)(void*)(b), (c), 0)
-#define net_setsockopt(a,b,c,d,e) setsockopt((a), (b), (c), (char*)(void*)(d), (e))
-inline int net_startup() {
-	WSADATA wsadata;
-	return WSAStartup(MAKEWORD(2, 2), &wsadata) ? -1 : 0;
-}
-inline int net_nonblock(int sock) {
-	u_long one = 1;
-	return ioctlsocket(sock, FIONBIO, &one);
-}
-inline int net_block(int sock) {
-	u_long one = 0;
-	return ioctlsocket(sock, FIONBIO, &one);
-}
-#define net_again() (WSAGetLastError() == WSAEWOULDBLOCK)
-#include <stdio.h>
-inline void net_perror(const char *s) {
-	char buf[256];
-	int error = WSAGetLastError();
-	if (FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 0, error, 0, buf, 256, 0) == 0)
-		sprintf(buf, "WSA Error %d", error);
-	if (s && *s)
-		fprintf(stderr, "%s: %s\n", s, buf);
-	else
-		fprintf(stderr, "%s\n", buf);
+namespace rsgame {
+	inline int net_close(int fd) {
+		return closesocket(fd);
+	}
+	inline int net_read(int fd, void *buf, size_t len) {
+		return recv(fd, (char *)buf, len, 0);
+	}
+	inline int net_write(int fd, const void *buf, size_t len) {
+		return send(fd, (const char *)buf, len, 0);
+	}
+	inline int net_setsockopt(int fd, int level, int optname, const void *optval, int optlen) {
+		return setsockopt(fd, level, optname, (const char *)optval, optlen);
+	}
+	inline int net_startup() {
+		WSADATA wsadata;
+		return WSAStartup(MAKEWORD(2, 2), &wsadata) ? -1 : 0;
+	}
+	inline int net_nonblock(int sock) {
+		u_long one = 1;
+		return ioctlsocket(sock, FIONBIO, &one);
+	}
+	inline int net_block(int sock) {
+		u_long one = 0;
+		return ioctlsocket(sock, FIONBIO, &one);
+	}
+	inline bool net_again() {
+		return WSAGetLastError() == WSAEWOULDBLOCK;
+	}
+	inline void net_perror(const char *s) {
+		char buf[256];
+		int error = WSAGetLastError();
+		if (FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, 0, error, 0, buf, 256, 0) == 0)
+			sprintf(buf, "WSA Error %d", error);
+		if (s && *s)
+			fprintf(stderr, "%s: %s\n", s, buf);
+		else
+			fprintf(stderr, "%s\n", buf);
+	}
 }
 #endif
 // rsgame specific helpers
