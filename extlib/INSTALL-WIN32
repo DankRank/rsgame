@@ -25,7 +25,6 @@ To actually use the libraries, there are *-config.cmake files. Here's an example
 on how to configure the main build to use them:
 	cmake -S . -B build \
 		-DCMAKE_FIND_PACKAGE_PREFER_CONFIG=TRUE \
-		-DZLIB_DIR=extlib \
 		-DPNG_DIR=extlib \
 		-DSDL2_DIR=extlib \
 		-Depoxy_DIR=extlib
@@ -34,3 +33,6 @@ loaded.
 
 To copy the required DLLs, use copy-deps.cmd.
 Usage: copy-deps [destination] [32|64]
+
+For static builds, build sdl2 with build-sdl2-static.cmd and use config files
+from the static directory.

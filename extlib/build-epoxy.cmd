@@ -34,11 +34,15 @@ if not "%1" == "64" (
 	call "%MSVC_DIR%\Auxiliary\Build\vcvars32"
 	meson setup build32
 	meson compile -C build32
+	meson setup --default-library=static -Dc_args=-DEPOXY_PUBLIC=extern build32static
+	meson compile -C build32static
 )
 if not "%1" == "32" (
 	call "%MSVC_DIR%\Auxiliary\Build\vcvars64"
 	meson setup build64
 	meson compile -C build64
+	meson setup --default-library=static -Dc_args=-DEPOXY_PUBLIC=extern build64static
+	meson compile -C build64static
 )
 popd
 endlocal

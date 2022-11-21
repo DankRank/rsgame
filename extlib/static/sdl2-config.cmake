@@ -1,0 +1,17 @@
+if(${CMAKE_SIZEOF_VOID_P} MATCHES 8)
+	set(_SDL2_PREFIX "${CMAKE_CURRENT_LIST_DIR}/../SDL2static/build64")
+else()
+	set(_SDL2_PREFIX "${CMAKE_CURRENT_LIST_DIR}/../SDL2static/build32")
+endif()
+add_library(SDL2::SDL2 STATIC IMPORTED)
+set_target_properties(SDL2::SDL2 PROPERTIES
+	INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_LIST_DIR}/../SDL2static/include"
+	INTERFACE_LINK_LIBRARIES "winmm;imm32;setupapi;version"
+	IMPORTED_LOCATION "${_SDL2_PREFIX}/Release/SDL2-static.lib"
+)
+add_library(SDL2::SDL2main STATIC IMPORTED)
+set_target_properties(SDL2::SDL2main PROPERTIES
+	INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_CURRENT_LIST_DIR}/../SDL2static/include"
+	IMPORTED_LOCATION "${_SDL2_PREFIX}/Release/SDL2main.lib"
+)
+set(_SDL2_PREFIX)
