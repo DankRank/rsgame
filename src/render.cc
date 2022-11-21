@@ -577,16 +577,17 @@ void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int 
 			if (!pz)
 				dz -= .3125f;
 		}
-		draw_face_basic(x+sx, y-.9375f, z+sz, dx, 1.f, dz, 1, tex + (int)straight, LIGHT_WIRE0+level->get_tile_meta(x, y, z), dx, dz, spin, sx, sz);
+		int light = LIGHT_WIRE0 + level->get_tile_meta(x, y, z);
+		draw_face_basic(x+sx, y-.9375f, z+sz, dx, 1.f, dz, 1, tex + (int)straight, light, dx, dz, spin, sx, sz);
 		if (!pinched) {
 			if (mxo && level->get_tile_id(x-1, y+1, z) == 55)
-				draw_face_basic(x-.9375f, y, z, 1.f, 1.f, 1.f, 5, tex+1, LIGHT_SIDEX, 1.f, 1.f, true);
+				draw_face_basic(x-.9375f, y, z, 1.f, 1.f, 1.f, 5, tex+1, light, 1.f, 1.f, true);
 			if (pxo && level->get_tile_id(x+1, y+1, z) == 55)
-				draw_face_basic(x+.9375f, y, z, 1.f, 1.f, 1.f, 4, tex+1, LIGHT_SIDEX, 1.f, 1.f, true);
+				draw_face_basic(x+.9375f, y, z, 1.f, 1.f, 1.f, 4, tex+1, light, 1.f, 1.f, true);
 			if (mzo && level->get_tile_id(x, y+1, z-1) == 55)
-				draw_face_basic(x, y, z-.9375f, 1.f, 1.f, 1.f, 3, tex+1, LIGHT_SIDEZ, 1.f, 1.f, true);
+				draw_face_basic(x, y, z-.9375f, 1.f, 1.f, 1.f, 3, tex+1, light, 1.f, 1.f, true);
 			if (pzo && level->get_tile_id(x, y+1, z+1) == 55)
-				draw_face_basic(x, y, z+.9375f, 1.f, 1.f, 1.f, 2, tex+1, LIGHT_SIDEZ, 1.f, 1.f, true);
+				draw_face_basic(x, y, z+.9375f, 1.f, 1.f, 1.f, 2, tex+1, light, 1.f, 1.f, true);
 		}
 		break;
 	}
