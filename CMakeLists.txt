@@ -28,8 +28,9 @@ endif()
 set_target_properties(rsgame_common PROPERTIES
 	INTERFACE_COMPILE_FEATURES cxx_std_17)
 if(WIN32)
+	option(RSGAME_BUNDLE "look for assets within the exe file" OFF)
 	set_target_properties(rsgame_common PROPERTIES
-		INTERFACE_COMPILE_DEFINITIONS "WINVER=0x0600;_WIN32_WINNT=0x0600")
+		INTERFACE_COMPILE_DEFINITIONS "WINVER=0x0600;_WIN32_WINNT=0x0600;$<$<BOOL:${RSGAME_BUNDLE}>:RSGAME_BUNDLE>")
 endif()
 if(NOT(CMAKE_VERSION VERSION_LESS 3.16.0))
 	set_target_properties(rsgame_common PROPERTIES
