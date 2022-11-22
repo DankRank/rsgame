@@ -38,6 +38,8 @@ struct Connection {
 	int sock;
 	bool dead = false;
 	bool logged_in = false;
+	int oldx = 0, oldy = 0, oldz = 0;
+	short oldyaw = 0, oldpitch = 0;
 	int x = 0, y = 0, z = 0;
 	short yaw = 0, pitch = 0;
 	int eid = 0;
@@ -150,6 +152,7 @@ public:
 	}
 };
 std::vector<Connection*> conns;
+bool new_joins_this_tick = false;
 /* Each poll cycle looks like so:
  * - poll
  * - read and process packets
@@ -475,6 +478,7 @@ int main(int argc, char** argv)
 								.write8(S_EntityEnter)
 								.write32(conn2->eid));
 						}
+					new_joins_this_tick = true;
 				} else {
 					if (plen == 0)
 						continue;
@@ -546,18 +550,31 @@ int main(int argc, char** argv)
 				pw.write8(S_EntityUpdates);
 				while (pw.pos < 65536 - 20 && it != conns.end()) {
 					Connection *conn = *it++;
+					if (!new_joins_this_tick &&
+							conn->x == conn->oldx &&
+							conn->y == conn->oldy &&
+							conn->z == conn->oldz &&
+							conn->yaw == conn->oldyaw &&
+							conn->pitch == conn->oldpitch)
+						continue;
 					pw.write32(conn->eid);
 					pw.write32(conn->x);
 					pw.write32(conn->y);
 					pw.write32(conn->z);
 					pw.write16(conn->yaw);
 					pw.write16(conn->pitch);
+					conn->oldx = conn->x;
+					conn->oldy = conn->y;
+					conn->oldz = conn->z;
+					conn->oldyaw = conn->yaw;
+					conn->oldpitch = conn->pitch;
 				}
 				for (Connection *conn : conns)
 					if (conn->logged_in)
 						conn->send(pw);
 			}
 		}
+		new_joins_this_tick = false;
 		poller.process_writes();
 		accept_connections();
 		close_dead_connections();

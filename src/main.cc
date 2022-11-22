@@ -290,6 +290,8 @@ int main(int argc, char** argv)
 	float yaw = glm::radians(180.f), pitch = 0.0;
 	vec3 pos{0};
 	vec3 look{0};
+	int oldx, oldy, oldz;
+	short oldyaw, oldpitch;
 
 #ifdef RSGAME_NETCLIENT
 	init_player();
@@ -611,14 +613,26 @@ int main(int argc, char** argv)
 #ifdef RSGAME_NETCLIENT
 				{
 					uint8_t pbuf[2+17];
-					PacketWriter(pbuf)
-						.write8(C_ChangePosition)
-						.write32(pos.x * 32)
-						.write32(pos.y * 32)
-						.write32(pos.z * 32)
-						.write16(yaw * 65535 / (2*glm::pi<float>()))
-						.write16(pitch * 65535 / (2*glm::pi<float>()))
-						.send(sock);
+					int x = pos.x * 32;
+					int y = pos.y * 32;
+					int z = pos.z * 32;
+					int nyaw = yaw * 65535 / (2*glm::pi<float>());
+					int npitch = pitch * 65535 / (2*glm::pi<float>());
+					if (x != oldx || y != oldy || z != oldz || nyaw != oldyaw || npitch != oldpitch) {
+						PacketWriter(pbuf)
+							.write8(C_ChangePosition)
+							.write32(x)
+							.write32(y)
+							.write32(z)
+							.write16(nyaw)
+							.write16(npitch)
+							.send(sock);
+						oldx = x;
+						oldy = y;
+						oldz = z;
+						oldyaw = yaw;
+						oldpitch = pitch;
+					}
 				}
 				{
 					static uint8_t pbuf[2+65536];
