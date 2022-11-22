@@ -152,12 +152,12 @@ int main(int argc, char** argv)
 		} else {
 			fprintf(stderr, "Connecting to ???\n");
 		}
-		sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+		sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
 		if (sock == -1) {
 			net_perror("socket");
 			continue;
 		}
-		if (connect(sock, res->ai_addr, res->ai_addrlen) == -1) {
+		if (connect(sock, ai->ai_addr, ai->ai_addrlen) == -1) {
 			net_perror("connect");
 			net_close(sock);
 			sock = -1;
@@ -210,15 +210,54 @@ int main(int argc, char** argv)
 		uint32_t zsize = pr.read32();
 		uint32_t zbits = pr.read32();
 		level = Level(xsize, zsize, zbits);
+		int8_t buf[1024];
+		size_t bpos = 1024;
 		int ofs = 0;
+		int state = 0;
+		size_t control = 0;
+		int block_no = 0;
 		while (ofs < (int)level.buf.size()) {
-			int r = net_read(sock, level.buf.data()+ofs, level.buf.size()-ofs);
-			if (r < 0) {
-				net_perror("read");
-				return 1;
+			if (bpos == 1024) {
+				bpos = 0;
+				while (bpos != 1024) {
+					int r = net_read(sock, buf+bpos, 1024-bpos);
+					if (r <= 0) {
+						net_perror("read");
+						return 1;
+					}
+					bpos += r;
+				}
+				printf("read block no %d @ %d/%d\n", block_no++, ofs, (int)level.buf.size());
+				bpos = 0;
 			}
-			ofs += r;
-			fprintf(stderr, "%d/%d\n", ofs, (int)level.buf.size());
+			switch (state) {
+			case 0:
+				if (buf[bpos] < 0) {
+					state = 1;
+					control = -buf[bpos++];
+					control = std::min(level.buf.size() - ofs, control);
+				} else {
+					state = 2;
+					control = buf[bpos++]+3;
+					control = std::min(level.buf.size() - ofs, control);
+				}
+				break;
+			case 1: {
+				int tocopy = std::min(control, 1024-bpos);
+				memcpy(level.buf.data() + ofs, buf + bpos, tocopy);
+				ofs += tocopy;
+				bpos += tocopy;
+				control -= tocopy;
+				if (control == 0)
+					state = 0;
+				break;
+			}
+			case 2:
+				memset(level.buf.data() + ofs, (uint8_t)buf[bpos++], control);
+				ofs += control;
+				state = 0;
+				break;
+			}
 		}
 	}
 #endif

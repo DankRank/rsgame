@@ -405,7 +405,61 @@ int main(int argc, char** argv)
 						.write32(level.xsize)
 						.write32(level.zsize)
 						.write32(level.zbits));
-					conn->write(level.buf.data(), level.buf.size());
+					/* RLE compression
+					 * control byte 0 - 127: repeat the following byte x + 3 times
+					 * control byte 128 - 255: copy the following -x bytes literally
+					 */
+					uint8_t rlebuf[1024];
+					int rlepos = 0;
+					int block_no = 0;
+					bool in_run = false;
+					int start = 0;
+					int pos = 0;
+					auto emit = [&](const void *buf, int len) {
+						while (len) {
+							int tocopy = std::min(1024-rlepos, len);
+							memcpy(rlebuf + rlepos, buf, len);
+							rlepos += tocopy;
+							buf = (char *)buf + tocopy;
+							len -= tocopy;
+							if (rlepos == 1024) {
+								conn->write(rlebuf, 1024);
+								rlepos = 0;
+							}
+						}
+					};
+					while (pos < (int)level.buf.size()) {
+						if (in_run) {
+							if (level.buf[pos] != level.buf[pos-1] || pos - start == 127+3) {
+								uint8_t b[2] = { (uint8_t)(pos - start - 3), level.buf[pos-1] };
+								emit(b, 2);
+								in_run = false;
+								start = pos;
+							}
+							pos++;
+						} else {
+							if (pos - start == 128) {
+								uint8_t b = -128;
+								emit(&b, 1);
+								emit(&level.buf[start], 128);
+								start = pos;
+							}
+							if (pos - start >= 2 && level.buf[pos] == level.buf[pos-1] && level.buf[pos] == level.buf[pos-2]) {
+								if (pos - start > 2) {
+									uint8_t b = -(pos - 2 - start);
+									emit(&b, 1);
+									emit(&level.buf[start], pos - 2 - start);
+								}
+								in_run = true;
+								start = pos-2;
+							}
+							pos++;
+						}
+					}
+					if (rlepos) {
+						memset(rlebuf+rlepos, 0, 1024-rlepos);
+						conn->write(rlebuf, 1024);
+					}
 					{
 						PacketWriter pw(pbuf);
 						pw.write8(S_EntityEnter);

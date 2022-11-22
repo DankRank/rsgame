@@ -1,4 +1,4 @@
-Protocol version 0x20221121
+Protocol version 0x20221122
 Each packet is prefixed by 16-bit length
 Lenght 0 packet is allowed as a keep-alive
 
@@ -15,8 +15,12 @@ S: long world x size
 S: long world z size
 S: long world z bits
 size 21
-the following is not accounted in the size
-S: world data x*y*z*3/2 bytes
+the following is not accounted in the size of the packet
+S: RLE compressed world data
+uncompressed size: x*y*z*3/2 bytes
+compressed size: a multiple of 1024 bytes
+control byte 0 - 127: repeat the following byte x + 3 times
+control byte 128 - 255: copy the following -x bytes literally
 
 Disconnect
 C/S: 0x02
