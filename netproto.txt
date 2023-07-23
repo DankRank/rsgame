@@ -54,7 +54,7 @@ S: 0x08
 repeat {
 S: long block index
 S: byte new id
-S: byte old id
+S: byte new data
 }
 size 1 + 6x
 
