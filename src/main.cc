@@ -290,10 +290,10 @@ int main(int argc, char** argv)
 	float yaw = glm::radians(180.f), pitch = 0.0;
 	vec3 pos{0};
 	vec3 look{0};
-	int oldx, oldy, oldz;
-	short oldyaw, oldpitch;
 
 #ifdef RSGAME_NETCLIENT
+	int oldx = 0, oldy = 0, oldz = 0;
+	short oldyaw = 0, oldpitch = 0;
 	init_player();
 #endif
 	init_raytarget();

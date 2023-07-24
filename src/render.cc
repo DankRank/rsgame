@@ -72,7 +72,7 @@ static const float light_values[32*4] = {
 	WIRE_LIGHT(15),
 #undef WIRE_LIGHT
 };
-#define LIGHT_MAX (sizeof(light_values)/sizeof(float[4]))
+#define LIGHT_MAX (sizeof(light_values)/sizeof(float)/4)
 #define LIGHT_VAL(x) ((x)/(float)LIGHT_MAX)
 
 std::vector<float> RenderChunk::data;

@@ -414,7 +414,6 @@ int main(int argc, char** argv)
 					 */
 					uint8_t rlebuf[1024];
 					int rlepos = 0;
-					int block_no = 0;
 					bool in_run = false;
 					int start = 0;
 					int pos = 0;
