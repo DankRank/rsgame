@@ -15,12 +15,10 @@ namespace rsgame {
 #if defined(WIN32) && defined(RSGAME_BUNDLE)
 static bool bundle_loaded = false;
 static bool bundle_failed = true;
-static WCHAR bundle_path[MAX_PATH];
-static long bundle_body_offset;
 struct BundleEntry {
 	char name[257];
-	int32_t offset;
-	int32_t length;
+	void *buf;
+	size_t len;
 };
 static bool operator<(const BundleEntry &lhs, const BundleEntry &rhs) {
 	return strcmp(lhs.name, rhs.name) < 0;
@@ -34,32 +32,27 @@ static bool operator<(const char *lhs, const BundleEntry &rhs) {
 static std::set<BundleEntry, std::less<>> bundle_set;
 static void load_bundle() {
 	bundle_loaded = true;
-	DWORD r = GetModuleFileNameW(nullptr, bundle_path, MAX_PATH);
-	if (r == 0 || r == MAX_PATH)
+	HRSRC hResInfo = FindResourceW(nullptr, MAKEINTRESOURCEW(102), MAKEINTRESOURCEW(256));
+	if (!hResInfo)
 		return;
-	FILE *f = _wfopen(bundle_path, L"rb");
-	if (!f)
+	HGLOBAL hResData = LoadResource(nullptr, hResInfo);
+	if (!hResData)
 		return;
-	char buf[256+4+4];
-	if (fseek(f, -16, SEEK_END) != -1 && fread(buf, 1, 16, f) == 16 && !memcmp(buf, "assets00", 8)) {
-		long head_size = *(int32_t*)&buf[8];
-		long body_size = *(int32_t*)&buf[12];
-		bundle_body_offset = -16-body_size;
-		if (fseek(f, bundle_body_offset-head_size, SEEK_END) != -1) {
-			bundle_failed = false;
-			for (int i = 0; i < head_size/(256+4+4); i++) {
-				if (fread(buf, 1, 256+4+4, f) != 256+4+4)
-					break;
-				BundleEntry ent;
-				strncpy(ent.name, buf, 256);
-				ent.name[257] = 0;
-				ent.offset = *(int32_t*)&buf[256];
-				ent.length = *(int32_t*)&buf[256+4];
-				bundle_set.insert(ent);
-			}
-		}
+	char *buf = (char *)LockResource(hResData);
+	DWORD len = SizeofResource(nullptr, hResInfo);
+	if (!buf || len < 16 || memcmp(buf+len-16, "assets00", 8))
+		return;
+	int head_size = *(uint32_t*)(buf+len-8);
+	bundle_failed = false;
+	for (int i = 0; i < head_size/(256+4+4); i++) {
+		int ofs = (256+4+4)*i;
+		BundleEntry ent;
+		strncpy(ent.name, buf+ofs, 256);
+		ent.name[257] = 0;
+		ent.buf = buf + head_size + *(uint32_t*)(buf+ofs+256);
+		ent.len = *(uint32_t*)(buf+ofs+256+4);
+		bundle_set.insert(ent);
 	}
-	fclose(f);
 }
 #endif
 static void *load_file_impl(const char *filename, size_t *size) {
@@ -72,23 +65,13 @@ static void *load_file_impl(const char *filename, size_t *size) {
 	if (!bundle_failed) {
 		auto it = bundle_set.find(filename);
 		if (it != bundle_set.end()) {
-			FILE *f = _wfopen(bundle_path, L"rb");
-			if (f) {
-				if (fseek(f, bundle_body_offset + it->offset, SEEK_END) != -1) {
-					res = SDL_malloc(it->length + 1);
-					if (res) {
-						if (fread(res, 1, it->length, f) == it->length) {
-							((char*)res)[it->length] = 0;
-							if (size)
-								*size = it->length;
-							fclose(f);
-							return res;
-						}
-						SDL_free(res);
-						res = nullptr;
-					}
-				}
-				fclose(f);
+			res = SDL_malloc(it->len + 1);
+			if (res) {
+				memcpy(res, it->buf, it->len);
+				((char*)res)[it->len] = 0;
+				if (size)
+					*size = it->len;
+				return res;
 			}
 		}
 	}
