@@ -12,15 +12,17 @@ files = [
 head = bytearray()
 body = bytearray()
 
+head += struct.pack('<4sII', b'asse', len(files), 12)
+ofs = 12 + 24*len(files)
+
 for file in files:
+    assert len(file) <= 16
     with open('../assets/'+file, 'rb') as f:
         contents = f.read()
-        head += struct.pack('<256sII', file.encode(), len(body), len(contents))
+        head += struct.pack('<II16s', ofs, len(contents), file.encode())
         body += contents
-
-tail = struct.pack('<8sII', 'assets00'.encode(), len(head), len(body))
+        ofs += len(contents)
 
 with open('assets.bin', 'wb') as f:
     f.write(head)
     f.write(body)
-    f.write(tail)

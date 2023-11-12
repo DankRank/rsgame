@@ -36,9 +36,9 @@ static void *load_file_raw(const fs::path &pa, size_t *size) {
 static bool bundle_loaded = false;
 static bool bundle_failed = true;
 struct BundleEntry {
-	char name[257];
 	void *buf;
 	size_t len;
+	char name[17];
 };
 static bool operator<(const BundleEntry &lhs, const BundleEntry &rhs) {
 	return strcmp(lhs.name, rhs.name) < 0;
@@ -60,19 +60,24 @@ static void load_bundle() {
 		return;
 	char *buf = (char *)LockResource(hResData);
 	DWORD len = SizeofResource(nullptr, hResInfo);
-	if (!buf || len < 16 || memcmp(buf+len-16, "assets00", 8))
+	if (!buf || len < 12 || memcmp(buf, "asse", 4))
 		return;
-	int head_size = *(uint32_t*)(buf+len-8);
-	bundle_failed = false;
-	for (int i = 0; i < head_size/(256+4+4); i++) {
-		int ofs = (256+4+4)*i;
+	uint32_t count = *(uint32_t*)(buf+4);
+	uint32_t ofs = *(uint32_t*)(buf+8);
+	for (uint32_t i = 0; i < count; i++) {
+		if (len < ofs+24)
+			return;
 		BundleEntry ent;
-		strncpy(ent.name, buf+ofs, 256);
-		ent.name[257] = 0;
-		ent.buf = buf + head_size + *(uint32_t*)(buf+ofs+256);
-		ent.len = *(uint32_t*)(buf+ofs+256+4);
+		ent.buf = buf + *(uint32_t*)(buf+ofs);
+		ent.len = *(uint32_t*)(buf+ofs+4);
+		strncpy(ent.name, buf+ofs+8, 16);
+		ent.name[16] = 0;
+		if (len < (char *)ent.buf + ent.len - buf)
+			return;
 		bundle_set.insert(ent);
+		ofs += 24;
 	}
+	bundle_failed = false;
 }
 static void *load_file_bundle(int type, const char *filename, size_t *size) {
 	if (type == FILE_DATA) {
