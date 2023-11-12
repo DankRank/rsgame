@@ -5,8 +5,13 @@ namespace rsgame {
 	struct SDLDeleter {
 		void operator()(void *p);
 	};
-	std::unique_ptr<char[], SDLDeleter> load_file(const char *filename, size_t &size);
-	std::unique_ptr<char[], SDLDeleter> load_file(const char *filename);
+	enum {
+		FILE_DATA,
+		FILE_CONFIG,
+		FILE_STATE,
+	};
+	std::unique_ptr<char[], SDLDeleter> load_file(int type, const char *filename, size_t &size);
+	std::unique_ptr<char[], SDLDeleter> load_file(int type, const char *filename);
 	GLuint compile_shader(GLenum type, const char *name, const char *source);
 	GLuint load_shader(GLenum type, const char *filename);
 	GLuint create_program(GLuint vs, GLuint fs);

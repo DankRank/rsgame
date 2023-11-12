@@ -2,18 +2,18 @@
 import struct
 
 files = [
-    'assets/flat.frag',
-    'assets/flat.vert',
-    'assets/terrain.frag',
-    'assets/terrain.png',
-    'assets/terrain.vert',
+    'flat.frag',
+    'flat.vert',
+    'terrain.frag',
+    'terrain.png',
+    'terrain.vert',
 ]
 
 head = bytearray()
 body = bytearray()
 
 for file in files:
-    with open('../'+file, 'rb') as f:
+    with open('../assets/'+file, 'rb') as f:
         contents = f.read()
         head += struct.pack('<256sII', file.encode(), len(body), len(contents))
         body += contents

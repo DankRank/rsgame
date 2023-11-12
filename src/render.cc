@@ -662,8 +662,8 @@ RenderLevel::~RenderLevel() {
 		delete kv.second;
 }
 bool load_shaders() {
-	GLuint vs = load_shader(GL_VERTEX_SHADER, "assets/terrain.vert");
-	GLuint fs = load_shader(GL_FRAGMENT_SHADER, "assets/terrain.frag");
+	GLuint vs = load_shader(GL_VERTEX_SHADER, "terrain.vert");
+	GLuint fs = load_shader(GL_FRAGMENT_SHADER, "terrain.frag");
 	if (vs && fs) {
 		terrain_prog = create_program(vs, fs);
 		glBindAttribLocation(terrain_prog, TERRAIN_I_POSITION, "i_position");
@@ -676,8 +676,8 @@ bool load_shaders() {
 		terrain_u_tex = glGetUniformLocation(terrain_prog, "u_tex");
 		terrain_u_lighttex = glGetUniformLocation(terrain_prog, "u_lighttex");
 	}
-	vs = load_shader(GL_VERTEX_SHADER, "assets/flat.vert");
-	fs = load_shader(GL_FRAGMENT_SHADER, "assets/flat.frag");
+	vs = load_shader(GL_VERTEX_SHADER, "flat.vert");
+	fs = load_shader(GL_FRAGMENT_SHADER, "flat.frag");
 	if (vs && fs) {
 		flat_prog = create_program(vs, fs);
 		glBindAttribLocation(flat_prog, FLAT_I_POSITION, "i_position");
@@ -695,8 +695,7 @@ bool load_textures() {
 	glGenTextures(1, &terrain_tex);
 	glActiveTexture(GL_TEXTURE0 + TERRAIN_TEXTURE_TERRAIN);
 	glBindTexture(GL_TEXTURE_2D, terrain_tex);
-	if (!load_png("assets/terrain.png"))
-	//if (!load_png("terrain.png"))
+	if (!load_png("terrain.png"))
 		return false;
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);

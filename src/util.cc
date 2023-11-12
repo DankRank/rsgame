@@ -3,15 +3,35 @@
 #include "util.hh"
 #include <png.h>
 #include <stdio.h>
-#if defined(WIN32) && defined(RSGAME_BUNDLE)
+#include <filesystem>
+namespace fs = std::filesystem;
+#if defined(WIN32) && (defined(RSGAME_BUNDLE) || !defined(RSGAME_PORTABLE))
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <objbase.h>
+#include <shlobj.h>
 #undef near
 #undef far
 #undef min
 #undef max
 #endif
 namespace rsgame {
+static void *load_file_raw(const char *filename, size_t *size) {
+	if (verbose)
+		fprintf(stderr, "trying file: %s\n", filename);
+	return SDL_LoadFile(filename, size);
+}
+#if defined(WIN32)
+static void *load_file_raw(const wchar_t *filename, size_t *size) {
+	if (verbose)
+		fprintf(stderr, "trying file: %S\n", filename);
+	FILE *fp = _wfopen(filename, L"rb");
+	return fp ? SDL_LoadFile_RW(SDL_RWFromFP(fp, SDL_TRUE), size, 1) : nullptr;
+}
+#endif
+static void *load_file_raw(const fs::path &pa, size_t *size) {
+	return load_file_raw(pa.c_str(), size);
+}
 #if defined(WIN32) && defined(RSGAME_BUNDLE)
 static bool bundle_loaded = false;
 static bool bundle_failed = true;
@@ -54,38 +74,143 @@ static void load_bundle() {
 		bundle_set.insert(ent);
 	}
 }
-#endif
-static void *load_file_impl(const char *filename, size_t *size) {
-	void *res = SDL_LoadFile(filename, size);
-	if (res)
-		return res;
-#if defined(WIN32) && defined(RSGAME_BUNDLE)
-	if (!bundle_loaded)
-		load_bundle();
-	if (!bundle_failed) {
-		auto it = bundle_set.find(filename);
-		if (it != bundle_set.end()) {
-			res = SDL_malloc(it->len + 1);
-			if (res) {
-				memcpy(res, it->buf, it->len);
-				((char*)res)[it->len] = 0;
-				if (size)
-					*size = it->len;
-				return res;
+static void *load_file_bundle(int type, const char *filename, size_t *size) {
+	if (type == FILE_DATA) {
+		if (!bundle_loaded)
+			load_bundle();
+		if (!bundle_failed) {
+			auto it = bundle_set.find(filename);
+			if (it != bundle_set.end()) {
+				void *res = SDL_malloc(it->len + 1);
+				if (res) {
+					memcpy(res, it->buf, it->len);
+					((char*)res)[it->len] = 0;
+					if (size)
+						*size = it->len;
+					return res;
+				}
 			}
 		}
 	}
+	return 0;
+}
+#endif
+#define APPDIRNAME "rsgame"
+#if !defined(WIN32) && !defined(RSGAME_PORTABLE)
+static fs::path get_file_path_xdghome(int type) {
+	static const char *homeenvs[] = { "XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_STATE_HOME" };
+	static const char *homedefault[] = { ".local/share", ".config", ".local/state" };
+	fs::path pa;
+	const char *p;
+
+	p = SDL_getenv(homeenvs[type]);
+	if (!p || !*p) {
+		p = SDL_getenv("HOME");
+		if (!p || !*p)
+			p = "/";
+		return fs::path(p) / homedefault[type] / APPDIRNAME;
+	} else {
+		return fs::path(p) / APPDIRNAME;
+	}
+}
+static void *load_file_xdgdirs(int type, const char *filename, size_t *size) {
+	static const char *dirsenvs[] = { "XDG_DATA_DIRS", "XDG_CONFIG_DIRS", nullptr };
+	static const char *dirsdefault[] = { "/usr/local/share:/usr/share", "/etc/xdg", nullptr };
+	const char *p, *q;
+	void *res;
+
+	if (dirsenvs[type]) {
+		p = SDL_getenv(dirsenvs[type]);
+		if (!p || !*p)
+			p = dirsdefault[type];
+		while ((q = strchr(p, ':'))) {
+			if ((res = load_file_raw(fs::path(p, q) / APPDIRNAME / filename, size)))
+				return res;
+			p = q+1;
+		}
+		if ((res = load_file_raw(fs::path(p) / APPDIRNAME / filename, size)))
+			return res;
+	}
+	return 0;
+}
+#endif
+#if defined(WIN32) && !defined(RSGAME_PORTABLE)
+static fs::path get_file_path_appdata(int type) {
+	wchar_t *p = nullptr;
+	if (!SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &p)) {
+		static const char *suffixes[] = { "share", "config", "state" };
+		fs::path pa = fs::path(p) / APPDIRNAME / suffixes[type];
+		CoTaskMemFree(p);
+		return pa;
+	} else {
+		CoTaskMemFree(p);
+		return fs::path();
+	}
+}
+#endif
+static void *load_file_workdir(int type, const char *filename, size_t *size) {
+	if (type == FILE_DATA)
+		return load_file_raw(fs::path("assets") / filename, size);
+	else
+		return load_file_raw(filename, size);
+}
+#if defined(WIN32)
+static void *load_file_exedir(int type, const char *filename, size_t *size) {
+	wchar_t p[MAX_PATH];
+	if (GetModuleFileNameW(nullptr, p, MAX_PATH) == MAX_PATH)
+		return nullptr;
+	if (type == FILE_DATA)
+		return load_file_raw(fs::path(p).parent_path() / "assets" / filename, size);
+	else
+		return load_file_raw(fs::path(p).parent_path() / filename, size);
+}
+#endif
+static void *load_file_impl(int type, const char *filename, size_t *size) {
+	/* Search for the file in the following order:
+	 * 1) ~/.local/share/rsgame, ~/.config/rsgame, ~/.local/state/rsgame (Unix)
+	 * 2) %APPDATA%/rsgame/share, %APPDATA%/rsgame/config, %APPDATA%/rsgame/state (Win32)
+	 * 3) Current working directory
+	 * 4) Application (.exe) directory (Win32)
+	 * 5) /usr/share/rsgame, /etc/xdg/rsgame (Unix)
+	 * 6) Bundled resources (Win32, only FILE_DATA)
+	 *
+	 * 3 and 4 look for FILE_DATA in the assets subdirectory.
+	 */
+	void *res;
+#if !defined(WIN32) && !defined(RSGAME_PORTABLE)
+	if ((res = load_file_raw(get_file_path_xdghome(type) / filename, size)))
+		return res;
+#endif
+#if defined(WIN32) && !defined(RSGAME_PORTABLE)
+	fs::path pa = get_file_path_appdata(type);
+	if (!pa.empty())
+		if ((res = load_file_raw(pa / filename, size)))
+			return res;
+#endif
+	if ((res = load_file_workdir(type, filename, size)))
+		return res;
+#if defined(WIN32)
+	if ((res = load_file_exedir(type, filename, size)))
+		return res;
+#endif
+#if !defined(WIN32) && !defined(RSGAME_PORTABLE)
+	if ((res = load_file_xdgdirs(type, filename, size)))
+		return res;
+#endif
+#if defined(WIN32) && defined(RSGAME_BUNDLE)
+	if ((res = load_file_bundle(type, filename, size)))
+		return res;
 #endif
 	return nullptr;
 }
 void SDLDeleter::operator()(void *p) {
 	SDL_free(p);
 }
-std::unique_ptr<char[], SDLDeleter> load_file(const char *filename, size_t &size) {
-	return std::unique_ptr<char[], SDLDeleter>((char *)load_file_impl(filename, &size));
+std::unique_ptr<char[], SDLDeleter> load_file(int type, const char *filename, size_t &size) {
+	return std::unique_ptr<char[], SDLDeleter>((char *)load_file_impl(type, filename, &size));
 }
-std::unique_ptr<char[], SDLDeleter> load_file(const char *filename) {
-	return std::unique_ptr<char[], SDLDeleter>((char *)load_file_impl(filename, 0));
+std::unique_ptr<char[], SDLDeleter> load_file(int type, const char *filename) {
+	return std::unique_ptr<char[], SDLDeleter>((char *)load_file_impl(type, filename, 0));
 }
 GLuint compile_shader(GLenum type, const char *name, const char *source) {
 	GLuint shader = glCreateShader(type);
@@ -115,7 +240,7 @@ GLuint compile_shader(GLenum type, const char *name, const char *source) {
 	return shader;
 }
 GLuint load_shader(GLenum type, const char *filename) {
-	auto source = load_file(filename);
+	auto source = load_file(FILE_DATA, filename);
 	if (!source) {
 		fprintf(stderr, "Couldn't open %s\n", filename);
 		return 0;
@@ -167,7 +292,7 @@ std::vector<float> &operator <<(std::vector<float> &lhs, vec3 rhs) {
 }
 bool load_png(const char *filename) {
 	size_t size = 0;
-	auto data = load_file(filename, size);
+	auto data = load_file(FILE_DATA, filename, size);
 	if (!data) {
 		fprintf(stderr, "Couldn't open %s\n", filename);
 		return false;
