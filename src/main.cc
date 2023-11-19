@@ -736,7 +736,21 @@ int main(int argc, char** argv)
 		rl->update();
 		rl->draw();
 #ifdef RSGAME_NETCLIENT
-		draw_player_start();
+		{
+			float player_pts[4*256];
+			float *p = player_pts;
+			for (auto &ent: entities) {
+				if (p == (&player_pts)[1])
+					break;
+				if (ent.first != my_eid) {
+					*p++ = ent.second.x;
+					*p++ = ent.second.y;
+					*p++ = ent.second.z;
+					*p++ = ent.second.yaw;
+				}
+			}
+			draw_player_start(player_pts, (p-player_pts)/4, pos, look);
+		}
 		for (auto &ent: entities) {
 			if (ent.first != my_eid) {
 				draw_player(ent.second.model);

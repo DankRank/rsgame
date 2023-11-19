@@ -4,6 +4,9 @@ import struct
 files = [
     'flat.frag',
     'flat.vert',
+    'player.frag',
+    'player.png',
+    'player.vert',
     'terrain.frag',
     'terrain.png',
     'terrain.vert',

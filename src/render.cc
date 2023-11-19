@@ -5,15 +5,22 @@
 namespace rsgame {
 GLuint terrain_prog = 0;
 GLuint flat_prog = 0;
+GLuint player_prog = 0;
 static GLuint terrain_u_viewproj = 0;
 static GLuint terrain_u_tex = 0;
 static GLuint terrain_tex = 0;
 static GLuint terrain_u_lighttex = 0;
 static GLuint terrain_lighttex = 0;
 static GLuint flat_u_viewproj = 0;
+static GLuint player_u_viewproj = 0;
+static GLuint player_u_viewpos = 0;
+static GLuint player_u_viewlook = 0;
+static GLuint player_u_tex = 0;
+static GLuint player_tex = 0;
 enum {
 	TERRAIN_TEXTURE_TERRAIN = 0,
 	TERRAIN_TEXTURE_LIGHT,
+	PLAYER_TEXTURE_PLAYER = 0,
 };
 enum {
 	TERRAIN_I_POSITION = 0,
@@ -23,6 +30,10 @@ enum {
 enum {
 	FLAT_I_POSITION = 0,
 	FLAT_I_COLOR,
+};
+enum {
+	PLAYER_I_POSITION = 0,
+	PLAYER_I_TEXCOORD,
 };
 enum {
 	LIGHT_TOP = 0,
@@ -182,6 +193,10 @@ void RenderLevel::update(Uint64 target) {
 }
 void RenderLevel::draw() {
 	glUseProgram(terrain_prog);
+	glActiveTexture(GL_TEXTURE0 + TERRAIN_TEXTURE_TERRAIN);
+	glBindTexture(GL_TEXTURE_2D, terrain_tex);
+	glActiveTexture(GL_TEXTURE0 + TERRAIN_TEXTURE_LIGHT);
+	glBindTexture(GL_TEXTURE_2D, terrain_lighttex);
 	glUniformMatrix4fv(terrain_u_viewproj, 1, GL_FALSE, value_ptr(viewproj));
 	for (auto &kv : chunks) {
 		auto &rc = *kv.second;
@@ -206,9 +221,29 @@ void RenderLevel::draw() {
 	}
 }
 #ifdef RSGAME_NETCLIENT
+static GLuint nplayer_va, nplayer_vb;
 static GLuint player_va, player_vb;
 void init_player()
 {
+	glGenVertexArrays(1, &nplayer_va);
+	glGenBuffers(1, &nplayer_vb);
+	glBindBuffer(GL_ARRAY_BUFFER, nplayer_vb);
+	glBindVertexArray(nplayer_va);
+	glEnableVertexAttribArray(PLAYER_I_POSITION);
+	glEnableVertexAttribArray(PLAYER_I_TEXCOORD);
+	glVertexAttribPointer(PLAYER_I_POSITION, 4, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void*)(8*sizeof(float)));
+	glVertexAttribPointer(PLAYER_I_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*)0);
+	glVertexAttribDivisor(PLAYER_I_POSITION, 1);
+	const float quad[4*2] = {
+		0.f, 0.f,
+		0.f, 1.f,
+		1.f, 1.f,
+		1.f, 0.f,
+	};
+	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*4*(2+256), nullptr, GL_STREAM_DRAW);
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float)*4*2, quad);
+
+	// old
 	glGenVertexArrays(1, &player_va);
 	glGenBuffers(1, &player_vb);
 	glBindBuffer(GL_ARRAY_BUFFER, player_vb);
@@ -224,8 +259,20 @@ void init_player()
 	};
 	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*6*3, value_ptr(player_buf[0]), GL_STREAM_DRAW);
 }
-void draw_player_start()
+void draw_player_start(float *data, int len, vec3 pos, vec3 look)
 {
+	glUseProgram(player_prog);
+	glActiveTexture(GL_TEXTURE0 + PLAYER_TEXTURE_PLAYER);
+	glBindTexture(GL_TEXTURE_2D, player_tex);
+	glBindVertexArray(nplayer_va);
+	glBindBuffer(GL_ARRAY_BUFFER, nplayer_vb);
+	glBufferSubData(GL_ARRAY_BUFFER, sizeof(float)*4*2, sizeof(float)*4*len, data);
+	glUniformMatrix4fv(player_u_viewproj, 1, GL_FALSE, value_ptr(viewproj));
+	glUniform3fv(player_u_viewpos, 1, value_ptr(pos));
+	glUniform3fv(player_u_viewlook, 1, value_ptr(look));
+	glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, len);
+
+	// old
 	glUseProgram(flat_prog);
 	glBindVertexArray(player_va);
 	glLineWidth(4.f);
@@ -344,6 +391,10 @@ void draw_hud(int width, int height, uint8_t id, uint8_t data)
 
 	// draw item in hand
 	glUseProgram(terrain_prog);
+	glActiveTexture(GL_TEXTURE0 + TERRAIN_TEXTURE_TERRAIN);
+	glBindTexture(GL_TEXTURE_2D, terrain_tex);
+	glActiveTexture(GL_TEXTURE0 + TERRAIN_TEXTURE_LIGHT);
+	glBindTexture(GL_TEXTURE_2D, terrain_lighttex);
 	m = mat4(1.f);
 	glUniformMatrix4fv(terrain_u_viewproj, 1, GL_FALSE, value_ptr(m));
 	glBindVertexArray(handitem_va);
@@ -685,9 +736,23 @@ bool load_shaders() {
 		link_program(flat_prog, vs, fs);
 		glDeleteShader(vs);
 		glDeleteShader(fs);
-		flat_u_viewproj = glGetUniformLocation(terrain_prog, "u_viewproj");
+		flat_u_viewproj = glGetUniformLocation(flat_prog, "u_viewproj");
 	}
-	return !!terrain_prog && !!flat_prog;
+	vs = load_shader(GL_VERTEX_SHADER, "player.vert");
+	fs = load_shader(GL_FRAGMENT_SHADER, "player.frag");
+	if (vs && fs) {
+		player_prog = create_program(vs, fs);
+		glBindAttribLocation(player_prog, PLAYER_I_POSITION, "i_position");
+		glBindAttribLocation(player_prog, PLAYER_I_TEXCOORD, "i_texcoord");
+		link_program(player_prog, vs, fs);
+		glDeleteShader(vs);
+		glDeleteShader(fs);
+		player_u_viewproj = glGetUniformLocation(player_prog, "u_viewproj");
+		player_u_viewpos = glGetUniformLocation(player_prog, "u_viewpos");
+		player_u_viewlook = glGetUniformLocation(player_prog, "u_viewlook");
+		player_u_tex = glGetUniformLocation(player_prog, "u_tex");
+	}
+	return !!terrain_prog && !!flat_prog && !!player_prog;
 }
 bool load_textures() {
 	glUseProgram(terrain_prog);
@@ -706,6 +771,16 @@ bool load_textures() {
 	// using 2D texture for GLES support
 	glBindTexture(GL_TEXTURE_2D, terrain_lighttex);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, LIGHT_MAX, 1, 0, GL_RGBA, GL_FLOAT, light_values);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+	glUseProgram(player_prog);
+	glUniform1i(player_u_tex, PLAYER_TEXTURE_PLAYER);
+	glGenTextures(1, &player_tex);
+	glActiveTexture(GL_TEXTURE0 + PLAYER_TEXTURE_PLAYER);
+	glBindTexture(GL_TEXTURE_2D, player_tex);
+	if (!load_png("player.png"))
+		return false;
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	return true;

@@ -46,7 +46,7 @@ public:
 	extern GLuint flat_prog;
 #ifdef RSGAME_NETCLIENT
 	void init_player();
-	void draw_player_start();
+	void draw_player_start(float *data, int len, vec3 pos, vec3 look);
 	void draw_player(const mat4 &model);
 #endif
 	void init_raytarget();
