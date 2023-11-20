@@ -24,10 +24,6 @@ Frustum viewfrustum;
 int my_eid = -1;
 struct Entity {
 	float x, y, z, yaw, pitch;
-	mat4 model;
-	void gen_model() {
-		model = glm::rotate(glm::rotate(glm::translate(mat4(1), vec3(x, y, z)), yaw, vec3(0.f, 1.f, 0.f)), pitch, vec3(1.f, 0.f, 0.f));
-	}
 };
 std::unordered_map<int, Entity> entities;
 #endif
@@ -700,7 +696,6 @@ int main(int argc, char** argv)
 												it->second.z = (int32_t)pr.read32()/32.f;
 												it->second.yaw = pr.read16()*2.f*glm::pi<float>()/65535;
 												it->second.pitch = pr.read16()*2.f*glm::pi<float>()/65535;
-												it->second.gen_model();
 											}
 										}
 										break;
@@ -749,12 +744,7 @@ int main(int argc, char** argv)
 					*p++ = ent.second.yaw;
 				}
 			}
-			draw_player_start(player_pts, (p-player_pts)/4, pos, look);
-		}
-		for (auto &ent: entities) {
-			if (ent.first != my_eid) {
-				draw_player(ent.second.model);
-			}
+			draw_players(player_pts, (p-player_pts)/4, pos, look);
 		}
 #endif
 		raycast_in_physics = false;

@@ -222,14 +222,13 @@ void RenderLevel::draw() {
 	}
 }
 #ifdef RSGAME_NETCLIENT
-static GLuint nplayer_va, nplayer_vb;
 static GLuint player_va, player_vb;
 void init_player()
 {
-	glGenVertexArrays(1, &nplayer_va);
-	glGenBuffers(1, &nplayer_vb);
-	glBindBuffer(GL_ARRAY_BUFFER, nplayer_vb);
-	glBindVertexArray(nplayer_va);
+	glGenVertexArrays(1, &player_va);
+	glGenBuffers(1, &player_vb);
+	glBindBuffer(GL_ARRAY_BUFFER, player_vb);
+	glBindVertexArray(player_va);
 	glEnableVertexAttribArray(PLAYER_I_POSITION);
 	glEnableVertexAttribArray(PLAYER_I_TEXCOORD);
 	glVertexAttribPointer(PLAYER_I_POSITION, 4, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void*)(8*sizeof(float)));
@@ -243,30 +242,14 @@ void init_player()
 	};
 	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*4*(2+256), nullptr, GL_STREAM_DRAW);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float)*4*2, quad);
-
-	// old
-	glGenVertexArrays(1, &player_va);
-	glGenBuffers(1, &player_vb);
-	glBindBuffer(GL_ARRAY_BUFFER, player_vb);
-	glBindVertexArray(player_va);
-	glEnableVertexAttribArray(FLAT_I_POSITION);
-	glVertexAttribPointer(FLAT_I_POSITION, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
-	const float r2 = glm::root_two<float>();
-	vec3 player_buf[6] = {
-		vec3(0, 0, 0),
-		vec3(0, 0, -r2/2),
-		vec3(-r2/8, 0, -r2/2 + r2/8),
-		vec3(r2/8, 0, -r2/2 + r2/8),
-	};
-	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*6*3, value_ptr(player_buf[0]), GL_STREAM_DRAW);
 }
-void draw_player_start(float *data, int len, vec3 pos, vec3 look)
+void draw_players(float *data, int len, vec3 pos, vec3 look)
 {
 	glUseProgram(player_prog);
 	glActiveTexture(GL_TEXTURE0 + PLAYER_TEXTURE_PLAYER);
 	glBindTexture(GL_TEXTURE_2D, player_tex);
-	glBindVertexArray(nplayer_va);
-	glBindBuffer(GL_ARRAY_BUFFER, nplayer_vb);
+	glBindVertexArray(player_va);
+	glBindBuffer(GL_ARRAY_BUFFER, player_vb);
 	glBufferSubData(GL_ARRAY_BUFFER, sizeof(float)*4*2, sizeof(float)*4*len, data);
 	glUniformMatrix4fv(player_u_viewproj, 1, GL_FALSE, value_ptr(viewproj));
 	/* Vertex position is player position + transformed texture position.
@@ -285,19 +268,6 @@ void draw_player_start(float *data, int len, vec3 pos, vec3 look)
 	glUniformMatrix3fv(player_u_textrans, 1, GL_FALSE, value_ptr(textrans));
 	glUniform3fv(player_u_viewpos, 1, value_ptr(pos));
 	glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, len);
-
-	// old
-	glUseProgram(flat_prog);
-	glBindVertexArray(player_va);
-	glLineWidth(4.f);
-	glVertexAttrib4f(FLAT_I_COLOR, .0f, .0f, .0f, .1f);
-}
-void draw_player(const mat4 &model)
-{
-	mat4 mvp = viewproj*model;
-	glUniformMatrix4fv(0, 1, GL_FALSE, value_ptr(mvp));
-	static const uint8_t lines[6] = { 0, 1, 1, 2, 1, 3 };
-	glDrawElements(GL_LINES, 6, GL_UNSIGNED_BYTE, lines);
 }
 #endif
 static GLuint raytarget_va, raytarget_vb;
