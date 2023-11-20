@@ -322,6 +322,20 @@ bool load_png(const char *filename) {
 	png_image_free(&image);
 	return true;
 }
+void save_png_screenshot(const char *filename, int width, int height) {
+	png_image image;
+	memset(&image, 0, sizeof(image));
+	image.version = PNG_IMAGE_VERSION;
+	image.width = width;
+	image.height = height;
+	image.format = PNG_FORMAT_RGBA;
+	std::unique_ptr<char[]> buf(new char[PNG_IMAGE_SIZE(image)]);
+	glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buf.get());
+	png_image_write_to_file(&image, filename, 0, buf.get(), -PNG_IMAGE_ROW_STRIDE(image), nullptr);
+	if (PNG_IMAGE_FAILED(image)) {
+		fprintf(stderr, "%s: %s\n", filename, image.message);
+	}
+}
 void Frustum::from_viewproj(vec3 pos, vec3 look, vec3 upish, float vfov, float aspect, float near, float far) {
 	/* All implementation of this that I've seen construct the points for
 	 * side planes on the near (or far) plane intersection. Since we dot

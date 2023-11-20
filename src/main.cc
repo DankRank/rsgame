@@ -328,6 +328,7 @@ int main(int argc, char** argv)
 	bool key_state[KEY_COUNT] = {false};
 	bool physics_enabled = false;
 	bool hud_enabled = true;
+	bool screenshot_requested = false;
 	vec3 phys_velxz = vec3(0, 0, 0);
 	float phys_vely = 0.f;
 	bool phys_ground = false;
@@ -452,6 +453,9 @@ int main(int argc, char** argv)
 						break;
 					case SDL_SCANCODE_F1:
 						hud_enabled = !hud_enabled;
+						break;
+					case SDL_SCANCODE_F2:
+						screenshot_requested = true;
 						break;
 					case SDL_SCANCODE_F10:
 						SDL_SetRelativeMouseMode((SDL_bool)!SDL_GetRelativeMouseMode());
@@ -759,6 +763,10 @@ int main(int argc, char** argv)
 		if (hud_enabled)
 			draw_hud(width, height, id_in_hand, data_in_hand);
 
+		if (screenshot_requested) {
+			screenshot_requested = false;
+			save_png_screenshot("screenshot.png", width, height);
+		}
 		SDL_GL_SwapWindow(window);
 		Uint64 frame_end = SDL_GetPerformanceCounter();
 		double frame_time = (double)(frame_end - frame_start) / SDL_GetPerformanceFrequency();

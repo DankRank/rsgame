@@ -18,6 +18,7 @@ namespace rsgame {
 	void link_program(GLuint &program, GLuint vs, GLuint fs);
 	std::vector<float> &operator <<(std::vector<float> &lhs, vec3 rhs);
 	bool load_png(const char *filename);
+	void save_png_screenshot(const char *filename, int width, int height);
 	struct Frustum {
 		vec3 n[6];
 		float d[6];
