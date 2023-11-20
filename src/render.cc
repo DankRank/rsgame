@@ -2,6 +2,7 @@
 #include "common.hh"
 #include "render.hh"
 #include <stdio.h>
+#include <glm/mat4x4.hpp>
 namespace rsgame {
 GLuint terrain_prog = 0;
 GLuint flat_prog = 0;
@@ -13,8 +14,8 @@ static GLuint terrain_u_lighttex = 0;
 static GLuint terrain_lighttex = 0;
 static GLuint flat_u_viewproj = 0;
 static GLuint player_u_viewproj = 0;
+static GLuint player_u_textrans = 0;
 static GLuint player_u_viewpos = 0;
-static GLuint player_u_viewlook = 0;
 static GLuint player_u_tex = 0;
 static GLuint player_tex = 0;
 enum {
@@ -268,8 +269,21 @@ void draw_player_start(float *data, int len, vec3 pos, vec3 look)
 	glBindBuffer(GL_ARRAY_BUFFER, nplayer_vb);
 	glBufferSubData(GL_ARRAY_BUFFER, sizeof(float)*4*2, sizeof(float)*4*len, data);
 	glUniformMatrix4fv(player_u_viewproj, 1, GL_FALSE, value_ptr(viewproj));
+	/* Vertex position is player position + transformed texture position.
+	 * The texture coordinates on the input are in range 0..1. We transform
+	 * that to be a 4/3 wide, 2 high quad in world space. The origin point also
+	 * has to be offset 2/3 left, and 0.4 up (the latter is due to eye height
+	 * being 1.6). The coordinates are vertically flipped because we store
+	 * textures top-to-bottom. This yields the following affine transform:
+	 *                            [ 4/3   0  -2/3 ]
+	 * textrans = [ right  up ] x [  0   -2   0.4 ]
+	 * Where right and up are vectors. Up is just world up, right is
+	 * perpendicular to the camera to achieve that retro billboard look.
+	 */
+	vec3 right = normalize(vec3(-look.z, 0, look.x));
+	glm::mat3 textrans(1.333f*right, vec3(0, -2, 0), vec3(0, .4f, 0)-right*.667f);
+	glUniformMatrix3fv(player_u_textrans, 1, GL_FALSE, value_ptr(textrans));
 	glUniform3fv(player_u_viewpos, 1, value_ptr(pos));
-	glUniform3fv(player_u_viewlook, 1, value_ptr(look));
 	glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, len);
 
 	// old
@@ -748,8 +762,8 @@ bool load_shaders() {
 		glDeleteShader(vs);
 		glDeleteShader(fs);
 		player_u_viewproj = glGetUniformLocation(player_prog, "u_viewproj");
+		player_u_textrans = glGetUniformLocation(player_prog, "u_textrans");
 		player_u_viewpos = glGetUniformLocation(player_prog, "u_viewpos");
-		player_u_viewlook = glGetUniformLocation(player_prog, "u_viewlook");
 		player_u_tex = glGetUniformLocation(player_prog, "u_tex");
 	}
 	return !!terrain_prog && !!flat_prog && !!player_prog;
