@@ -327,6 +327,7 @@ int main(int argc, char** argv)
 	};
 	bool key_state[KEY_COUNT] = {false};
 	bool physics_enabled = false;
+	bool hud_enabled = true;
 	vec3 phys_velxz = vec3(0, 0, 0);
 	float phys_vely = 0.f;
 	bool phys_ground = false;
@@ -448,6 +449,9 @@ int main(int argc, char** argv)
 						}
 #endif
 						is_running = false;
+						break;
+					case SDL_SCANCODE_F1:
+						hud_enabled = !hud_enabled;
 						break;
 					case SDL_SCANCODE_F10:
 						SDL_SetRelativeMouseMode((SDL_bool)!SDL_GetRelativeMouseMode());
@@ -749,10 +753,11 @@ int main(int argc, char** argv)
 #endif
 		raycast_in_physics = false;
 		ray_valid = raycast(&level, pos, look, 10., ray);
-		if (ray_valid)
+		if (ray_valid && hud_enabled)
 			draw_raytarget(ray);
 
-		draw_hud(width, height, id_in_hand, data_in_hand);
+		if (hud_enabled)
+			draw_hud(width, height, id_in_hand, data_in_hand);
 
 		SDL_GL_SwapWindow(window);
 		Uint64 frame_end = SDL_GetPerformanceCounter();
