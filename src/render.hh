@@ -42,8 +42,6 @@ public:
 		RenderLevel(const RenderLevel&) =delete;
 		RenderLevel &operator=(const RenderLevel&) =delete;
 	};
-	extern GLuint terrain_prog;
-	extern GLuint flat_prog;
 #ifdef RSGAME_NETCLIENT
 	void init_player();
 	void draw_players(float *data, int len, vec3 pos, vec3 look);

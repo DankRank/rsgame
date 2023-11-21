@@ -2,40 +2,140 @@
 #include "common.hh"
 #include "render.hh"
 #include <stdio.h>
-#include <glm/mat4x4.hpp>
+#include <glm/mat3x3.hpp>
 namespace rsgame {
-GLuint terrain_prog = 0;
-GLuint flat_prog = 0;
-GLuint player_prog = 0;
-static GLuint terrain_u_viewproj = 0;
-static GLuint terrain_u_tex = 0;
-static GLuint terrain_tex = 0;
-static GLuint terrain_u_lighttex = 0;
-static GLuint terrain_lighttex = 0;
-static GLuint flat_u_viewproj = 0;
-static GLuint player_u_viewproj = 0;
-static GLuint player_u_textrans = 0;
-static GLuint player_u_viewpos = 0;
-static GLuint player_u_tex = 0;
-static GLuint player_tex = 0;
-enum {
-	TERRAIN_TEXTURE_TERRAIN = 0,
-	TERRAIN_TEXTURE_LIGHT,
-	PLAYER_TEXTURE_PLAYER = 0,
+struct ProgramInfo {
+	const char *vsname;
+	const char *fsname;
+	std::vector<const char *> attribnames;
+	std::vector<const char *> uniformnames;
+	std::vector<const char *> texnames;
+};
+struct Program {
+	GLuint prog;
+	std::unique_ptr<GLuint[]> u;
+	Program() {}
+	Program(const ProgramInfo &info) {
+		GLuint vs = load_shader(GL_VERTEX_SHADER, info.vsname);
+		if (vs) {
+			GLuint fs = load_shader(GL_FRAGMENT_SHADER, info.fsname);
+			if (fs) {
+				int i;
+				prog = create_program(vs, fs);
+
+				i = 0;
+				for (auto p : info.attribnames)
+					glBindAttribLocation(prog, i++, p);
+
+				link_program(prog, vs, fs);
+
+				u.reset(new GLuint[info.uniformnames.size()]);
+				i = 0;
+				for (auto p : info.uniformnames)
+					u[i++] = glGetUniformLocation(prog, p);
+
+				glUseProgram(prog);
+				i = 0;
+				for (auto p : info.texnames)
+					glUniform1i(glGetUniformLocation(prog, p), i++);
+			}
+			glDeleteShader(fs);
+		}
+		glDeleteShader(vs);
+	}
+};
+
+static Program r_terrain;
+static const ProgramInfo terrain_info = {
+	"terrain.vert",
+	"terrain.frag",
+	{ "i_position", "i_texcoord", "i_light" },
+	{ "u_viewproj" },
+	{ "u_tex", "u_lighttex" },
 };
 enum {
 	TERRAIN_I_POSITION = 0,
 	TERRAIN_I_TEXCOORD,
 	TERRAIN_I_LIGHT,
+	TERRAIN_U_VIEWPROJ = 0,
+	TERRAIN_T_TERRAIN = 0,
+	TERRAIN_T_LIGHT,
+};
+#define terrain_prog r_terrain.prog
+#define terrain_u_viewproj r_terrain.u[TERRAIN_U_VIEWPROJ]
+
+static Program r_flat;
+static const ProgramInfo flat_info = {
+	"flat.vert",
+	"flat.frag",
+	{ "i_position", "i_color" },
+	{ "u_viewproj" },
+	{},
 };
 enum {
 	FLAT_I_POSITION = 0,
 	FLAT_I_COLOR,
+	FLAT_U_VIEWPROJ = 0,
+};
+#define flat_prog r_flat.prog
+#define flat_u_viewproj r_flat.u[FLAT_U_VIEWPROJ]
+
+static Program r_player;
+static const ProgramInfo player_info = {
+	"player.vert",
+	"player.frag",
+	{ "i_position", "i_texcoord" },
+	{ "u_viewproj", "u_textrans", "u_viewpos" },
+	{ "u_tex" },
 };
 enum {
 	PLAYER_I_POSITION = 0,
 	PLAYER_I_TEXCOORD,
+	PLAYER_U_VIEWPROJ = 0,
+	PLAYER_U_TEXTRANS,
+	PLAYER_U_VIEWPOS,
+	PLAYER_T_PLAYER = 0,
 };
+#define player_prog r_player.prog
+#define player_u_viewproj r_player.u[PLAYER_U_VIEWPROJ]
+#define player_u_textrans r_player.u[PLAYER_U_TEXTRANS]
+#define player_u_viewpos r_player.u[PLAYER_U_VIEWPOS]
+
+bool load_shaders() {
+	r_terrain = Program(terrain_info);
+	r_flat = Program(flat_info);
+	r_player = Program(player_info);
+	return !!terrain_prog && !!flat_prog && !!player_prog;
+}
+
+struct Texture {
+	GLenum target;
+	GLuint texture;
+	void gen(GLenum target_) {
+		target = target_;
+		glGenTextures(1, &texture);
+	}
+	void bind(int unit) const {
+		glActiveTexture(GL_TEXTURE0 + unit);
+		glBindTexture(target, texture);
+	}
+};
+static Texture terrain_tex;
+static Texture terrain_lighttex;
+static Texture player_tex;
+
+static void use_program_tex(const Program &prog, std::initializer_list<Texture> texs = {}) {
+	glUseProgram(prog.prog);
+	int i = 0;
+	for (auto &tex : texs)
+		tex.bind(i++);
+}
+
+static void texture_disable_filtering() {
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+}
+
 enum {
 	LIGHT_TOP = 0,
 	LIGHT_SIDEZ,
@@ -58,34 +158,55 @@ enum {
 	LIGHT_WIRE13,
 	LIGHT_WIRE14,
 	LIGHT_WIRE15,
+	LIGHT_MAX = 32,
 };
-static const float light_values[32*4] = {
-	1.f, 1.f, 1.f, 1.f, // LIGHT_TOP
-	.8f, .8f, .8f, 1.f, // LIGHT_SIDEZ
-	.6f, .6f, .6f, 1.f, // LIGHT_SIDEX
-	.5f, .5f, .5f, 1.f, // LIGHT_BOTTOM
-	.0f, .0f, .0f, 1.f, // LIGHT_NONE
-	.0f, .0f, .0f, 1.f, // LIGHT_WIRE0
-#define WIRE_LIGHT(data) data/15.f * .6f + .4f, (data > 12 ? data/15.f * data/15.f * .7f - .5f : .0f), .0f, 1.f
-	WIRE_LIGHT(1),
-	WIRE_LIGHT(2),
-	WIRE_LIGHT(3),
-	WIRE_LIGHT(4),
-	WIRE_LIGHT(5),
-	WIRE_LIGHT(6),
-	WIRE_LIGHT(7),
-	WIRE_LIGHT(8),
-	WIRE_LIGHT(9),
-	WIRE_LIGHT(10),
-	WIRE_LIGHT(11),
-	WIRE_LIGHT(12),
-	WIRE_LIGHT(13),
-	WIRE_LIGHT(14),
-	WIRE_LIGHT(15),
-#undef WIRE_LIGHT
-};
-#define LIGHT_MAX (sizeof(light_values)/sizeof(float)/4)
 #define LIGHT_VAL(x) ((x)/(float)LIGHT_MAX)
+
+bool load_textures() {
+	terrain_tex.gen(GL_TEXTURE_2D);
+	terrain_tex.bind(TERRAIN_T_TERRAIN);
+	if (!load_png("terrain.png"))
+		return false;
+	texture_disable_filtering();
+
+	// using 2D texture for GLES support
+	terrain_lighttex.gen(GL_TEXTURE_2D);
+	terrain_lighttex.bind(TERRAIN_T_LIGHT);
+	static const float light_values[LIGHT_MAX*4] = {
+		1.f, 1.f, 1.f, 1.f, // LIGHT_TOP
+		.8f, .8f, .8f, 1.f, // LIGHT_SIDEZ
+		.6f, .6f, .6f, 1.f, // LIGHT_SIDEX
+		.5f, .5f, .5f, 1.f, // LIGHT_BOTTOM
+		.0f, .0f, .0f, 1.f, // LIGHT_NONE
+		.0f, .0f, .0f, 1.f, // LIGHT_WIRE0
+#define WIRE_LIGHT(data) data/15.f * .6f + .4f, (data > 12 ? data/15.f * data/15.f * .7f - .5f : .0f), .0f, 1.f
+		WIRE_LIGHT(1),
+		WIRE_LIGHT(2),
+		WIRE_LIGHT(3),
+		WIRE_LIGHT(4),
+		WIRE_LIGHT(5),
+		WIRE_LIGHT(6),
+		WIRE_LIGHT(7),
+		WIRE_LIGHT(8),
+		WIRE_LIGHT(9),
+		WIRE_LIGHT(10),
+		WIRE_LIGHT(11),
+		WIRE_LIGHT(12),
+		WIRE_LIGHT(13),
+		WIRE_LIGHT(14),
+		WIRE_LIGHT(15),
+#undef WIRE_LIGHT
+	};
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, LIGHT_MAX, 1, 0, GL_RGBA, GL_FLOAT, light_values);
+	texture_disable_filtering();
+
+	player_tex.gen(GL_TEXTURE_2D);
+	player_tex.bind(PLAYER_T_PLAYER);
+	if (!load_png("player.png"))
+		return false;
+	texture_disable_filtering();
+	return true;
+}
 
 std::vector<float> RenderChunk::data;
 RenderChunk::RenderChunk(int x, int y, int z) :x(x), y(y), z(z) {
@@ -193,11 +314,7 @@ void RenderLevel::update(Uint64 target) {
 	}
 }
 void RenderLevel::draw() {
-	glUseProgram(terrain_prog);
-	glActiveTexture(GL_TEXTURE0 + TERRAIN_TEXTURE_TERRAIN);
-	glBindTexture(GL_TEXTURE_2D, terrain_tex);
-	glActiveTexture(GL_TEXTURE0 + TERRAIN_TEXTURE_LIGHT);
-	glBindTexture(GL_TEXTURE_2D, terrain_lighttex);
+	use_program_tex(r_terrain, {terrain_tex, terrain_lighttex});
 	glUniformMatrix4fv(terrain_u_viewproj, 1, GL_FALSE, value_ptr(viewproj));
 	for (auto &kv : chunks) {
 		auto &rc = *kv.second;
@@ -245,9 +362,7 @@ void init_player()
 }
 void draw_players(float *data, int len, vec3 pos, vec3 look)
 {
-	glUseProgram(player_prog);
-	glActiveTexture(GL_TEXTURE0 + PLAYER_TEXTURE_PLAYER);
-	glBindTexture(GL_TEXTURE_2D, player_tex);
+	use_program_tex(r_player, {player_tex});
 	glBindVertexArray(player_va);
 	glBindBuffer(GL_ARRAY_BUFFER, player_vb);
 	glBufferSubData(GL_ARRAY_BUFFER, sizeof(float)*4*2, sizeof(float)*4*len, data);
@@ -297,7 +412,7 @@ void draw_raytarget(const RaycastResult &ray)
 		v + d*vec3(1, 1, 1),
 		v + d*vec3(0, 1, 1),
 	};
-	glUseProgram(flat_prog);
+	use_program_tex(r_flat);
 	glUniformMatrix4fv(0, 1, GL_FALSE, value_ptr(viewproj));
 	glBindBuffer(GL_ARRAY_BUFFER, raytarget_vb);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float)*8*3, value_ptr(raytarget_buf[0]));
@@ -356,7 +471,7 @@ void init_hud()
 void draw_hud(int width, int height, uint8_t id, uint8_t data)
 {
 	// draw crosshair
-	glUseProgram(flat_prog);
+	use_program_tex(r_flat);
 	mat4 m(1.f);
 	m[0][0] = 5*.5f/width;
 	m[1][1] = 5*.5f/height;
@@ -374,11 +489,7 @@ void draw_hud(int width, int height, uint8_t id, uint8_t data)
 	glEnable(GL_DEPTH_TEST);
 
 	// draw item in hand
-	glUseProgram(terrain_prog);
-	glActiveTexture(GL_TEXTURE0 + TERRAIN_TEXTURE_TERRAIN);
-	glBindTexture(GL_TEXTURE_2D, terrain_tex);
-	glActiveTexture(GL_TEXTURE0 + TERRAIN_TEXTURE_LIGHT);
-	glBindTexture(GL_TEXTURE_2D, terrain_lighttex);
+	use_program_tex(r_terrain, {terrain_tex, terrain_lighttex});
 	m = mat4(1.f);
 	glUniformMatrix4fv(terrain_u_viewproj, 1, GL_FALSE, value_ptr(m));
 	glBindVertexArray(handitem_va);
@@ -695,78 +806,5 @@ RenderLevel::RenderLevel(Level *level) :level(level) {}
 RenderLevel::~RenderLevel() {
 	for (auto &kv : chunks)
 		delete kv.second;
-}
-bool load_shaders() {
-	GLuint vs = load_shader(GL_VERTEX_SHADER, "terrain.vert");
-	GLuint fs = load_shader(GL_FRAGMENT_SHADER, "terrain.frag");
-	if (vs && fs) {
-		terrain_prog = create_program(vs, fs);
-		glBindAttribLocation(terrain_prog, TERRAIN_I_POSITION, "i_position");
-		glBindAttribLocation(terrain_prog, TERRAIN_I_TEXCOORD, "i_texcoord");
-		glBindAttribLocation(terrain_prog, TERRAIN_I_LIGHT, "i_light");
-		link_program(terrain_prog, vs, fs);
-		glDeleteShader(vs);
-		glDeleteShader(fs);
-		terrain_u_viewproj = glGetUniformLocation(terrain_prog, "u_viewproj");
-		terrain_u_tex = glGetUniformLocation(terrain_prog, "u_tex");
-		terrain_u_lighttex = glGetUniformLocation(terrain_prog, "u_lighttex");
-	}
-	vs = load_shader(GL_VERTEX_SHADER, "flat.vert");
-	fs = load_shader(GL_FRAGMENT_SHADER, "flat.frag");
-	if (vs && fs) {
-		flat_prog = create_program(vs, fs);
-		glBindAttribLocation(flat_prog, FLAT_I_POSITION, "i_position");
-		glBindAttribLocation(flat_prog, FLAT_I_COLOR, "i_color");
-		link_program(flat_prog, vs, fs);
-		glDeleteShader(vs);
-		glDeleteShader(fs);
-		flat_u_viewproj = glGetUniformLocation(flat_prog, "u_viewproj");
-	}
-	vs = load_shader(GL_VERTEX_SHADER, "player.vert");
-	fs = load_shader(GL_FRAGMENT_SHADER, "player.frag");
-	if (vs && fs) {
-		player_prog = create_program(vs, fs);
-		glBindAttribLocation(player_prog, PLAYER_I_POSITION, "i_position");
-		glBindAttribLocation(player_prog, PLAYER_I_TEXCOORD, "i_texcoord");
-		link_program(player_prog, vs, fs);
-		glDeleteShader(vs);
-		glDeleteShader(fs);
-		player_u_viewproj = glGetUniformLocation(player_prog, "u_viewproj");
-		player_u_textrans = glGetUniformLocation(player_prog, "u_textrans");
-		player_u_viewpos = glGetUniformLocation(player_prog, "u_viewpos");
-		player_u_tex = glGetUniformLocation(player_prog, "u_tex");
-	}
-	return !!terrain_prog && !!flat_prog && !!player_prog;
-}
-bool load_textures() {
-	glUseProgram(terrain_prog);
-	glUniform1i(terrain_u_tex, TERRAIN_TEXTURE_TERRAIN);
-	glGenTextures(1, &terrain_tex);
-	glActiveTexture(GL_TEXTURE0 + TERRAIN_TEXTURE_TERRAIN);
-	glBindTexture(GL_TEXTURE_2D, terrain_tex);
-	if (!load_png("terrain.png"))
-		return false;
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-	glUniform1i(terrain_u_lighttex, TERRAIN_TEXTURE_LIGHT);
-	glGenTextures(1, &terrain_lighttex);
-	glActiveTexture(GL_TEXTURE0 + TERRAIN_TEXTURE_LIGHT);
-	// using 2D texture for GLES support
-	glBindTexture(GL_TEXTURE_2D, terrain_lighttex);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, LIGHT_MAX, 1, 0, GL_RGBA, GL_FLOAT, light_values);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-
-	glUseProgram(player_prog);
-	glUniform1i(player_u_tex, PLAYER_TEXTURE_PLAYER);
-	glGenTextures(1, &player_tex);
-	glActiveTexture(GL_TEXTURE0 + PLAYER_TEXTURE_PLAYER);
-	glBindTexture(GL_TEXTURE_2D, player_tex);
-	if (!load_png("player.png"))
-		return false;
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	return true;
 }
 }

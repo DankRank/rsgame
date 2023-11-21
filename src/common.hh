@@ -22,6 +22,7 @@
 #include <set>
 #include <unordered_set>
 #include <unordered_map>
+#include <initializer_list>
 #include <memory>
 #include <utility>
 #include <algorithm>
