@@ -28,7 +28,7 @@ struct Program {
 
 				link_program(prog, vs, fs);
 
-				u.reset(new GLuint[info.uniformnames.size()]);
+				u = std::make_unique<GLuint[]>(info.uniformnames.size());
 				i = 0;
 				for (auto p : info.uniformnames)
 					u[i++] = glGetUniformLocation(prog, p);
