@@ -123,10 +123,10 @@ uint32_t Level::pos_to_index(int x, int y, int z) {
 		return -1;
 	return x << (zbits+7) | z << 7 | y;
 }
-glm::ivec3 Level::index_to_pos(uint32_t index) {
+ivec3 Level::index_to_pos(uint32_t index) {
 	if (index == (uint32_t)-1)
-		return glm::ivec3(-1);
-	return glm::ivec3(index >> (zbits+7), index & 127, index >> 7 & ((1 << zbits)-1));
+		return ivec3(-1);
+	return ivec3(index >> (zbits+7), index & 127, index >> 7 & ((1 << zbits)-1));
 }
 uint8_t Level::get_tile_id(int x, int y, int z) {
 	if (x < 0 || x > xsize-1 || z < 0 || z > zsize-1 || y < 0 || y > 127)
@@ -400,7 +400,7 @@ void Level::update_wire_neighbors(int x, int y, int z) {
 void Level::wire_propagation_start(int x, int y, int z) {
 	wire_propagation(x, y, z, x, y, z);
 	pending_wire_updates_set.clear();
-	std::vector<glm::ivec3> updates = std::move(pending_wire_updates);
+	std::vector<ivec3> updates = std::move(pending_wire_updates);
 	for (auto v : updates)
 		update_neighbors(v.x, v.y, v.z);
 }
@@ -459,7 +459,7 @@ void Level::wire_propagation(int x, int y, int z, int sx, int sy, int sz) {
 		}
 		if (old_strength == 0 || new_strength == 0) {
 			auto add_update = [this](int x, int y, int z) {
-				glm::ivec3 v(x, y, z);
+				ivec3 v(x, y, z);
 				if (pending_wire_updates_set.find(v) == pending_wire_updates_set.end()) {
 					pending_wire_updates_set.insert(v);
 					pending_wire_updates.push_back(v);

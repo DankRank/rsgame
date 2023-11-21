@@ -2,7 +2,6 @@
 #include "common.hh"
 #include "render.hh"
 #include <stdio.h>
-#include <glm/mat3x3.hpp>
 namespace rsgame {
 struct ProgramInfo {
 	const char *vsname;
@@ -379,7 +378,7 @@ void draw_players(float *data, int len, vec3 pos, vec3 look)
 	 * perpendicular to the camera to achieve that retro billboard look.
 	 */
 	vec3 right = normalize(vec3(-look.z, 0, look.x));
-	glm::mat3 textrans(1.333f*right, vec3(0, -2, 0), vec3(0, .4f, 0)-right*.667f);
+	mat3 textrans(1.333f*right, vec3(0, -2, 0), vec3(0, .4f, 0)-right*.667f);
 	glUniformMatrix3fv(player_u_textrans, 1, GL_FALSE, value_ptr(textrans));
 	glUniform3fv(player_u_viewpos, 1, value_ptr(pos));
 	glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, len);

@@ -679,7 +679,7 @@ int main(int argc, char** argv)
 											uint32_t index = pr.read32();
 											uint8_t id = pr.read8();
 											uint8_t data = pr.read8();
-											glm::ivec3 bpos = level.index_to_pos(index);
+											ivec3 bpos = level.index_to_pos(index);
 											level.set_tile(bpos.x, bpos.y, bpos.z, id, data);
 											rl->set_dirty(bpos.x, bpos.y, bpos.z);
 										}

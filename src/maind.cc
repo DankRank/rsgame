@@ -307,7 +307,7 @@ void close_dead_connections() {
 		}
 	}
 }
-std::vector<glm::ivec3> block_updates;
+std::vector<ivec3> block_updates;
 void server_set_dirty(int x, int y, int z)
 {
 	block_updates.emplace_back(x, y, z);
@@ -506,7 +506,7 @@ int main(int argc, char** argv)
 						uint8_t new_id = pr.read8();
 						uint8_t new_data = pr.read8();
 
-						glm::ivec3 pos = level.index_to_pos(index);
+						ivec3 pos = level.index_to_pos(index);
 						if (old_id == level.get_tile_id(pos.x, pos.y, pos.z) &&
 								old_data == level.get_tile_meta(pos.x, pos.y, pos.z)) {
 							level.set_tile(pos.x, pos.y, pos.z, new_id, new_data);
@@ -534,7 +534,7 @@ int main(int argc, char** argv)
 				PacketWriter pw(pbuf);
 				pw.write8(S_BlockUpdates);
 				while (pw.pos < 65536 - 6 && it != block_updates.end()) {
-					glm::ivec3 pos = *it++;
+					ivec3 pos = *it++;
 					pw.write32(level.pos_to_index(pos.x, pos.y, pos.z));
 					pw.write8(level.get_tile_id(pos.x, pos.y, pos.z));
 					pw.write8(level.get_tile_meta(pos.x, pos.y, pos.z));

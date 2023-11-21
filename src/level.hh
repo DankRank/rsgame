@@ -35,7 +35,7 @@ namespace rsgame {
 		Level(int xs = 512, int zs = 512, int zb = 9);
 		RenderLevel *rl = nullptr;
 		uint32_t pos_to_index(int x, int y, int z);
-		glm::ivec3 index_to_pos(uint32_t index);
+		ivec3 index_to_pos(uint32_t index);
 		uint8_t get_tile_id(int x, int y, int z);
 		uint8_t get_tile_meta(int x, int y, int z);
 		void set_tile(int x, int y, int z, uint8_t id, uint8_t metadata);
@@ -68,8 +68,8 @@ namespace rsgame {
 		uint8_t *blocks;
 		uint8_t *data;
 	private:
-		std::unordered_set<glm::ivec3> pending_wire_updates_set;
-		std::vector<glm::ivec3> pending_wire_updates;
+		std::unordered_set<ivec3> pending_wire_updates_set;
+		std::vector<ivec3> pending_wire_updates;
 	};
 }
 #endif
