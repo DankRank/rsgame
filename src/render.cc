@@ -159,7 +159,7 @@ enum {
 	LIGHT_WIRE15,
 	LIGHT_MAX = 32,
 };
-#define LIGHT_VAL(x) ((x)/(float)LIGHT_MAX)
+#define LIGHT_VAL(x) (((x)+.5f)/LIGHT_MAX)
 
 bool load_textures() {
 	terrain_tex.gen(GL_TEXTURE_2D);
