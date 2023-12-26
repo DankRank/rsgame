@@ -7,6 +7,7 @@ Requirements:
 	OpenGL 3.2 Core / OpenGL ES 3.0
 	libepoxy
 	libpng
+	zlib
 
 Instructions:
 	git submodule update --init --recursive
