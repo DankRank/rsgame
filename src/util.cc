@@ -142,7 +142,7 @@ static void *load_file_xdgdirs(int type, const char *filename, size_t *size) {
 #if defined(WIN32) && !defined(RSGAME_PORTABLE)
 static fs::path get_file_path_appdata(int type) {
 	wchar_t *p = nullptr;
-	if (!SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &p)) {
+	if (SUCCEEDED(SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, nullptr, &p))) {
 		static const char *suffixes[] = { "share", "config", "state" };
 		fs::path pa = fs::path(p) / APPDIRNAME / suffixes[type];
 		CoTaskMemFree(p);
@@ -331,7 +331,7 @@ void save_png_screenshot(const char *filename, int width, int height) {
 	image.format = PNG_FORMAT_RGBA;
 	std::unique_ptr<char[]> buf(new char[PNG_IMAGE_SIZE(image)]);
 	glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, buf.get());
-	png_image_write_to_file(&image, filename, 0, buf.get(), -PNG_IMAGE_ROW_STRIDE(image), nullptr);
+	png_image_write_to_file(&image, filename, 0, buf.get(), -(int)PNG_IMAGE_ROW_STRIDE(image), nullptr);
 	if (PNG_IMAGE_FAILED(image)) {
 		fprintf(stderr, "%s: %s\n", filename, image.message);
 	}

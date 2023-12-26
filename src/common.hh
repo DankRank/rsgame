@@ -11,6 +11,7 @@
 #ifndef RSGAME_SERVER
 #include <SDL.h>
 #include <epoxy/gl.h>
+#undef APIENTRY /* avoid a warning when including windows.h */
 #endif
 #include <glm/vec3.hpp>
 #include <glm/geometric.hpp>
