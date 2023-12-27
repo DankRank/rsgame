@@ -1,6 +1,6 @@
 @echo off
 setlocal
-set V=2.24.2
+set V=2.28.5
 if not exist SDL2-%V%.tar.gz curl -LSso SDL2-%V%.tar.gz https://www.libsdl.org/release/SDL2-%V%.tar.gz
 if exist SDL2static rd /s /q SDL2static
 tar -xf SDL2-%V%.tar.gz
