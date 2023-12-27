@@ -8,6 +8,7 @@
 #include <stdio.h>
 #ifdef RSGAME_NETCLIENT
 #include "net.hh"
+#include <zlib.h>
 #endif
 namespace rsgame {
 bool verbose = true;
@@ -206,54 +207,39 @@ int main(int argc, char** argv)
 		uint32_t zsize = pr.read32();
 		uint32_t zbits = pr.read32();
 		level = Level(xsize, zsize, zbits);
-		int8_t buf[1024];
-		size_t bpos = 1024;
-		int ofs = 0;
-		int state = 0;
-		size_t control = 0;
-		int block_no = 0;
-		while (ofs < (int)level.buf.size()) {
-			if (bpos == 1024) {
-				bpos = 0;
-				while (bpos != 1024) {
-					int r = net_read(sock, buf+bpos, 1024-bpos);
-					if (r <= 0) {
-						net_perror("read");
+		{
+			z_stream strm;
+			uint8_t zbuf[1024];
+			memset(&strm, 0, sizeof(strm));
+			inflateInit(&strm);
+			strm.next_out = level.buf.data();
+			strm.avail_out = level.buf.size();
+			int res = Z_OK;
+			while (res == Z_OK) {
+				int r = net_read(sock, zbuf, 1024);
+				if (r <= 0) {
+					net_perror("read");
+					return 1;
+				}
+				strm.next_in = zbuf;
+				strm.avail_in = sizeof(zbuf);
+				fprintf(stderr, "bytes remaining: %d\n", strm.avail_out);
+				res = inflate(&strm, Z_NO_FLUSH);
+				if (res == Z_OK) {
+					if (strm.avail_in != 0) {
+						fprintf(stderr, "zlib doesn't work the way I want it to work\n");
 						return 1;
 					}
-					bpos += r;
+				} else if (res != Z_STREAM_END) {
+					fprintf(stderr, "zlib failed: %s\n", strm.msg);
+					return 1;
 				}
-				printf("read block no %d @ %d/%d\n", block_no++, ofs, (int)level.buf.size());
-				bpos = 0;
 			}
-			switch (state) {
-			case 0:
-				if (buf[bpos] < 0) {
-					state = 1;
-					control = -buf[bpos++];
-					control = std::min(level.buf.size() - ofs, control);
-				} else {
-					state = 2;
-					control = buf[bpos++]+3;
-					control = std::min(level.buf.size() - ofs, control);
-				}
-				break;
-			case 1: {
-				int tocopy = std::min(control, 1024-bpos);
-				memcpy(level.buf.data() + ofs, buf + bpos, tocopy);
-				ofs += tocopy;
-				bpos += tocopy;
-				control -= tocopy;
-				if (control == 0)
-					state = 0;
-				break;
+			if (strm.avail_out != 0) {
+				fprintf(stderr, "zlib stream too short\n");
+				return 1;
 			}
-			case 2:
-				memset(level.buf.data() + ofs, (uint8_t)buf[bpos++], control);
-				ofs += control;
-				state = 0;
-				break;
-			}
+			inflateEnd(&strm);
 		}
 	}
 #endif

@@ -62,6 +62,8 @@ namespace rsgame {
 #undef far
 #undef min
 #undef max
+#undef NEAR
+#undef FAR
 namespace rsgame {
 	inline int net_close(int fd) {
 		return closesocket(fd);
@@ -103,7 +105,7 @@ namespace rsgame {
 }
 #endif
 // rsgame specific helpers
-#define RSGAME_NETPROTO 0x20221122
+#define RSGAME_NETPROTO 0x20231227
 namespace rsgame {
 	enum {
 		C_ClientIntroduction = 0,

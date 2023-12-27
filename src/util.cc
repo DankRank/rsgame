@@ -14,6 +14,8 @@ namespace fs = std::filesystem;
 #undef far
 #undef min
 #undef max
+#undef NEAR
+#undef FAR
 #endif
 namespace rsgame {
 static void *load_file_raw(const char *filename, size_t *size) {
