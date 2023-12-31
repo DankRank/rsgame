@@ -147,6 +147,7 @@ void Frustum::from_viewproj(vec3 pos, vec3 look, vec3 upish, float vfov, float a
 	d[5] = dot(n[5], pos);
 }
 Program::Program(const ProgramInfo &info) {
+	prog = 0;
 	GLuint vs = load_shader(GL_VERTEX_SHADER, info.vsname);
 	if (vs) {
 		GLuint fs = load_shader(GL_FRAGMENT_SHADER, info.fsname);

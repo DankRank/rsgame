@@ -10,7 +10,6 @@ namespace rsgame {
 	struct RenderChunk {
 		static std::vector<float> data;
 		int x, y, z;
-		bool empty;
 		size_t size, cap;
 private:
 		GLuint va, vb;
