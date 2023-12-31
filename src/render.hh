@@ -3,7 +3,7 @@
 #define RSGAME_RENDER
 #include "level.hh"
 #include "raycast.hh"
-#include "util.hh"
+#include "glutil.hh"
 namespace rsgame {
 	struct Level;
 	struct RaycastResult;
@@ -33,7 +33,7 @@ public:
 		void set_dirty1(int x, int y, int z);
 		void set_dirty(int x, int y, int z);
 		void update(Uint64 target = 0);
-		void draw();
+		void draw(const Frustum &viewfrustum);
 	private:
 		void draw_block(Level *level, uint8_t id, int x, int y, int z, int data);
 	public:

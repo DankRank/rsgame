@@ -46,6 +46,7 @@ set(SOURCES_CLIENT
 	src/main.cc
 	src/render.cc src/render.hh
 	src/util.cc src/util.hh
+	src/glutil.cc src/glutil.hh
 	src/raycast.cc src/raycast.hh
 	$<$<BOOL:${WIN32}>:src/resource.rc>)
 set(SOURCES_SERVER

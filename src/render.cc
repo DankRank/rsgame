@@ -1,49 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0 OR MIT
 #include "common.hh"
 #include "render.hh"
+#include "util.hh"
 #include <stdio.h>
 namespace rsgame {
-struct ProgramInfo {
-	const char *vsname;
-	const char *fsname;
-	std::vector<const char *> attribnames;
-	std::vector<const char *> uniformnames;
-	std::vector<const char *> texnames;
-};
-struct Program {
-	GLuint prog;
-	std::unique_ptr<GLuint[]> u;
-	Program() {}
-	Program(const ProgramInfo &info) {
-		GLuint vs = load_shader(GL_VERTEX_SHADER, info.vsname);
-		if (vs) {
-			GLuint fs = load_shader(GL_FRAGMENT_SHADER, info.fsname);
-			if (fs) {
-				int i;
-				prog = create_program(vs, fs);
-
-				i = 0;
-				for (auto p : info.attribnames)
-					glBindAttribLocation(prog, i++, p);
-
-				link_program(prog, vs, fs);
-
-				u = std::make_unique<GLuint[]>(info.uniformnames.size());
-				i = 0;
-				for (auto p : info.uniformnames)
-					u[i++] = glGetUniformLocation(prog, p);
-
-				glUseProgram(prog);
-				i = 0;
-				for (auto p : info.texnames)
-					glUniform1i(glGetUniformLocation(prog, p), i++);
-			}
-			glDeleteShader(fs);
-		}
-		glDeleteShader(vs);
-	}
-};
-
 static Program r_terrain;
 static const ProgramInfo terrain_info = {
 	"terrain.vert",
@@ -107,33 +67,9 @@ bool load_shaders() {
 	return !!terrain_prog && !!flat_prog && !!player_prog;
 }
 
-struct Texture {
-	GLenum target;
-	GLuint texture;
-	void gen(GLenum target_) {
-		target = target_;
-		glGenTextures(1, &texture);
-	}
-	void bind(int unit) const {
-		glActiveTexture(GL_TEXTURE0 + unit);
-		glBindTexture(target, texture);
-	}
-};
 static Texture terrain_tex;
 static Texture terrain_lighttex;
 static Texture player_tex;
-
-static void use_program_tex(const Program &prog, std::initializer_list<Texture> texs = {}) {
-	glUseProgram(prog.prog);
-	int i = 0;
-	for (auto &tex : texs)
-		tex.bind(i++);
-}
-
-static void texture_disable_filtering() {
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-}
 
 enum {
 	LIGHT_TOP = 0,
@@ -312,7 +248,7 @@ void RenderLevel::update(Uint64 target) {
 		}
 	}
 }
-void RenderLevel::draw() {
+void RenderLevel::draw(const Frustum &viewfrustum) {
 	use_program_tex(r_terrain, {terrain_tex, terrain_lighttex});
 	glUniformMatrix4fv(terrain_u_viewproj, 1, GL_FALSE, value_ptr(viewproj));
 	for (auto &kv : chunks) {

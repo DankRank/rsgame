@@ -1,0 +1,39 @@
+// SPDX-License-Identifier: Apache-2.0 OR MIT
+#ifndef RSGAME_GLUTIL
+#define RSGAME_GLUTIL
+namespace rsgame {
+	GLuint compile_shader(GLenum type, const char *name, const char *source);
+	GLuint load_shader(GLenum type, const char *filename);
+	GLuint create_program(GLuint vs, GLuint fs);
+	void link_program(GLuint &program, GLuint vs, GLuint fs);
+	std::vector<float> &operator <<(std::vector<float> &lhs, vec3 rhs);
+	bool load_png(const char *filename);
+	void save_png_screenshot(const char *filename, int width, int height);
+	struct Frustum {
+		vec3 n[6];
+		float d[6];
+		void from_viewproj(vec3 pos, vec3 look, vec3 upish, float vfov, float aspect, float near, float far);
+	};
+	struct ProgramInfo {
+		const char *vsname;
+		const char *fsname;
+		std::vector<const char *> attribnames;
+		std::vector<const char *> uniformnames;
+		std::vector<const char *> texnames;
+	};
+	struct Program {
+		GLuint prog;
+		std::unique_ptr<GLuint[]> u;
+		Program() {}
+		Program(const ProgramInfo &info);
+	};
+	struct Texture {
+		GLenum target;
+		GLuint texture;
+		void gen(GLenum target_);
+		void bind(int unit) const;
+	};
+	void use_program_tex(const Program &prog, std::initializer_list<Texture> texs = {});
+	void texture_disable_filtering();
+}
+#endif

@@ -5,6 +5,7 @@
 #include "tile.hh"
 #include "raycast.hh"
 #include "util.hh"
+#include "glutil.hh"
 #include <stdio.h>
 #ifdef RSGAME_NETCLIENT
 #include "net.hh"
@@ -12,7 +13,7 @@
 #endif
 namespace rsgame {
 bool verbose = true;
-bool gles = false;
+static bool gles = false;
 static bool glcore = false;
 const char *shader_prologue = nullptr;
 bool vsync = true;
@@ -20,7 +21,7 @@ bool fullscreen = false;
 SDL_Window* window = nullptr;
 bool is_running = true;
 mat4 viewproj;
-Frustum viewfrustum;
+static Frustum viewfrustum;
 #if RSGAME_NETCLIENT
 int my_eid = -1;
 struct Entity {
@@ -723,7 +724,7 @@ int main(int argc, char** argv)
 
 		viewfrustum.from_viewproj(pos, look, vec3(0, 1, 0), vfov, aspect, near, far);
 		rl->update();
-		rl->draw();
+		rl->draw(viewfrustum);
 #ifdef RSGAME_NETCLIENT
 		{
 			float player_pts[4*256];
