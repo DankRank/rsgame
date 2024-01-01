@@ -33,5 +33,6 @@ namespace rsgame {
 	using glm::vec3;
 	using glm::mat3;
 	using glm::mat4;
+	struct AABB { vec3 min, max; };
 };
 #endif

@@ -146,6 +146,25 @@ void Frustum::from_viewproj(vec3 pos, vec3 look, vec3 upish, float vfov, float a
 	d[4] = dot(n[4], pos);
 	d[5] = dot(n[5], pos);
 }
+bool Frustum::visible(const AABB &aabb) const {
+	/* If all AABB points are behind one of the planes,
+	 * the entire volume is outside the frustum.
+	 *
+	 * This is a conservative check.
+	 */
+	for (int i = 0; i < 6; i++) {
+		if (dot(n[i], vec3(aabb.min.x, aabb.min.y, aabb.min.z)) < d[i] &&
+			dot(n[i], vec3(aabb.max.x, aabb.min.y, aabb.min.z)) < d[i] &&
+			dot(n[i], vec3(aabb.min.x, aabb.max.y, aabb.min.z)) < d[i] &&
+			dot(n[i], vec3(aabb.min.x, aabb.min.y, aabb.max.z)) < d[i] &&
+			dot(n[i], vec3(aabb.max.x, aabb.max.y, aabb.min.z)) < d[i] &&
+			dot(n[i], vec3(aabb.min.x, aabb.max.y, aabb.max.z)) < d[i] &&
+			dot(n[i], vec3(aabb.max.x, aabb.min.y, aabb.max.z)) < d[i] &&
+			dot(n[i], vec3(aabb.max.x, aabb.max.y, aabb.max.z)) < d[i])
+			return false;
+	}
+	return true;
+}
 Program::Program(const ProgramInfo &info) {
 	prog = 0;
 	GLuint vs = load_shader(GL_VERTEX_SHADER, info.vsname);

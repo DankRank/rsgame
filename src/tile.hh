@@ -10,7 +10,6 @@ namespace rsgame {
 		WIRE,
 		TORCH,
 	};
-	struct AABB { vec3 min, max; };
 	namespace tiles {
 		const AABB &get_aabb(RenderType rt, uint8_t id, uint8_t data);
 		extern RenderType render_type[256];

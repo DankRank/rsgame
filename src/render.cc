@@ -253,24 +253,8 @@ void RenderLevel::draw(const Frustum &viewfrustum) {
 	glUniformMatrix4fv(terrain_u_viewproj, 1, GL_FALSE, value_ptr(viewproj));
 	for (auto &kv : chunks) {
 		auto &rc = *kv.second;
-		int i;
-		if (rc.size == 0)
-			continue;
-		for (i = 0; i < 6; i++) {
-			if (dot(viewfrustum.n[i], vec3(rc.x,    rc.y,    rc.z   )) < viewfrustum.d[i] &&
-				dot(viewfrustum.n[i], vec3(rc.x+16, rc.y,    rc.z   )) < viewfrustum.d[i] &&
-				dot(viewfrustum.n[i], vec3(rc.x,    rc.y+16, rc.z   )) < viewfrustum.d[i] &&
-				dot(viewfrustum.n[i], vec3(rc.x,    rc.y,    rc.z+16)) < viewfrustum.d[i] &&
-				dot(viewfrustum.n[i], vec3(rc.x+16, rc.y+16, rc.z   )) < viewfrustum.d[i] &&
-				dot(viewfrustum.n[i], vec3(rc.x,    rc.y+16, rc.z+16)) < viewfrustum.d[i] &&
-				dot(viewfrustum.n[i], vec3(rc.x+16, rc.y,    rc.z+16)) < viewfrustum.d[i] &&
-				dot(viewfrustum.n[i], vec3(rc.x+16, rc.y+16, rc.z+16)) < viewfrustum.d[i])
-				break;
-		}
-		if (i == 6)
+		if (rc.size && viewfrustum.visible(AABB{{rc.x, rc.y, rc.z}, {rc.x+16, rc.y+16, rc.z+16}}))
 			rc.draw();
-		//else
-		//	printf("check %i failed\n", i);
 	}
 }
 #ifdef RSGAME_NETCLIENT

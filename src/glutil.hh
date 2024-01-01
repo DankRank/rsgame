@@ -10,9 +10,13 @@ namespace rsgame {
 	bool load_png(const char *filename);
 	void save_png_screenshot(const char *filename, int width, int height);
 	struct Frustum {
+		/* We represent a frustum as an intersection of 6 half-spaces (= directed planes).
+		 * n[i] is the unit normal of the i-th plane, pointing inside the frustum.
+		 * n[i]*d[i] is a point on the i-th plane. */
 		vec3 n[6];
 		float d[6];
 		void from_viewproj(vec3 pos, vec3 look, vec3 upish, float vfov, float aspect, float near, float far);
+		bool visible(const AABB &aabb) const;
 	};
 	struct ProgramInfo {
 		const char *vsname;
