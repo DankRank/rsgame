@@ -28,6 +28,49 @@ struct Entity {
 	float x, y, z, yaw, pitch;
 };
 std::unordered_map<int, Entity> entities;
+int connect_to_host(const char *connect_host, const char *connect_port)
+{
+	struct addrinfo hints, *res;
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+	int err = getaddrinfo(connect_host, connect_port, &hints, &res);
+	if (err) {
+		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(err));
+		return 1;
+	}
+	int sock = -1;
+	for (struct addrinfo *ai = res; ai; ai = ai->ai_next) {
+		if (ai->ai_addr->sa_family == AF_INET) {
+			char host[INET_ADDRSTRLEN];
+			inet_ntop(AF_INET, &((struct sockaddr_in*)ai->ai_addr)->sin_addr, host, sizeof(host));
+			uint16_t port = ntohs(((struct sockaddr_in*)ai->ai_addr)->sin_port);
+			fprintf(stderr, "Connecting to %s:%u\n", host, port);
+		} else if (ai->ai_addr->sa_family == AF_INET6) {
+			char host[INET6_ADDRSTRLEN];
+			inet_ntop(AF_INET6, &((struct sockaddr_in6*)ai->ai_addr)->sin6_addr, host, sizeof(host));
+			uint16_t port = ntohs(((struct sockaddr_in6*)ai->ai_addr)->sin6_port);
+			fprintf(stderr, "Connecting to [%s]:%u\n", host, port);
+		} else {
+			fprintf(stderr, "Connecting to ???\n");
+		}
+		sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+		if (sock == -1) {
+			net_perror("socket");
+			continue;
+		}
+		if (connect(sock, ai->ai_addr, ai->ai_addrlen) == -1) {
+			net_perror("connect");
+			net_close(sock);
+			sock = -1;
+			continue;
+		}
+		break;
+	}
+	freeaddrinfo(res);
+	return sock;
+}
 #endif
 int main(int argc, char** argv)
 {
@@ -124,47 +167,8 @@ int main(int argc, char** argv)
 
 #ifdef RSGAME_NETCLIENT
 	fprintf(stderr, "Connecting to server...\n");
-
-	struct addrinfo hints, *res;
-	memset(&hints, 0, sizeof(hints));
-	hints.ai_family = AF_UNSPEC;
-	hints.ai_socktype = SOCK_STREAM;
-	hints.ai_protocol = IPPROTO_TCP;
-	int err = getaddrinfo(connect_host, connect_port, &hints, &res);
-	if (err) {
-		fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(err));
-		return 1;
-	}
-	int sock = -1;
-	for (struct addrinfo *ai = res; ai; ai = ai->ai_next) {
-		if (ai->ai_addr->sa_family == AF_INET) {
-			char host[INET_ADDRSTRLEN];
-			inet_ntop(AF_INET, &((struct sockaddr_in*)ai->ai_addr)->sin_addr, host, sizeof(host));
-			uint16_t port = ntohs(((struct sockaddr_in*)ai->ai_addr)->sin_port);
-			fprintf(stderr, "Connecting to %s:%u\n", host, port);
-		} else if (ai->ai_addr->sa_family == AF_INET6) {
-			char host[INET6_ADDRSTRLEN];
-			inet_ntop(AF_INET6, &((struct sockaddr_in6*)ai->ai_addr)->sin6_addr, host, sizeof(host));
-			uint16_t port = ntohs(((struct sockaddr_in6*)ai->ai_addr)->sin6_port);
-			fprintf(stderr, "Connecting to [%s]:%u\n", host, port);
-		} else {
-			fprintf(stderr, "Connecting to ???\n");
-		}
-		sock = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
-		if (sock == -1) {
-			net_perror("socket");
-			continue;
-		}
-		if (connect(sock, ai->ai_addr, ai->ai_addrlen) == -1) {
-			net_perror("connect");
-			net_close(sock);
-			sock = -1;
-			continue;
-		}
-		break;
-	}
-	freeaddrinfo(res);
-	if (sock == -1) {
+	int sock;
+	if ((sock = connect_to_host(connect_host, connect_port)) == -1) {
 		printf("Couldn't connect\n");
 		return 1;
 	}
