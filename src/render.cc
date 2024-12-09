@@ -494,6 +494,16 @@ void draw_hud(int width, int height, uint8_t id, uint8_t data)
 		vec3 t3g(s3,        t3+1/16.f, LIGHT_VAL(LIGHT_SIDEX));
 		vec3 t3f(s3+1/16.f, t3+1/16.f, LIGHT_VAL(LIGHT_SIDEX));
 		vec3 t3c(s3+1/16.f, t3,        LIGHT_VAL(LIGHT_SIDEX));
+		if (tiles::render_type[id] == RenderType::SLAB) {
+			a.y -= scale/2;
+			b.y -= scale/2;
+			c.y -= scale/2;
+			d.y -= scale/2;
+			t2e.y -= 1/32.f;
+			t2g.y -= 1/32.f;
+			t3g.y -= 1/32.f;
+			t3f.y -= 1/32.f;
+		}
 		push_quad(verts, a, t1a, b, t1b, d, t1d, c, t1c);
 		push_quad(verts, b, t2b, e, t2e, g, t2g, d, t2d);
 		push_quad(verts, d, t3d, g, t3g, f, t3f, c, t3c);
