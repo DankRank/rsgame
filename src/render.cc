@@ -8,7 +8,7 @@ static Program r_terrain;
 static const ProgramInfo terrain_info = {
 	"terrain.vert",
 	"terrain.frag",
-	{ "i_position", "i_texcoord", "i_light" },
+	{ "i_position", "i_texcoord", "i_light", "i_aolight" },
 	{ "u_viewproj" },
 	{ "u_tex", "u_lighttex" },
 };
@@ -16,6 +16,7 @@ enum {
 	TERRAIN_I_POSITION = 0,
 	TERRAIN_I_TEXCOORD,
 	TERRAIN_I_LIGHT,
+	TERRAIN_I_AOLIGHT,
 	TERRAIN_U_VIEWPROJ = 0,
 	TERRAIN_T_TERRAIN = 0,
 	TERRAIN_T_LIGHT,
@@ -143,7 +144,9 @@ bool load_textures() {
 	return true;
 }
 
+bool render_ao_enabled = true;
 std::vector<float> RenderChunk::data;
+std::vector<float> RenderChunk::aodata;
 RenderChunk::RenderChunk(int x, int y, int z) :x(x), y(y), z(z) {
 	glGenVertexArrays(1, &va);
 	glGenBuffers(1, &vb);
@@ -163,17 +166,30 @@ RenderChunk::~RenderChunk() {
 	glDeleteBuffers(1, &vb);
 }
 void RenderChunk::flip() {
+	has_ao = render_ao_enabled;
+	glBindVertexArray(va);
 	glBindBuffer(GL_ARRAY_BUFFER, vb);
 	size = data.size();
-	if (size <= cap) {
-		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float)*size, data.data());
-	} else {
-		glBufferData(GL_ARRAY_BUFFER, sizeof(float)*size, data.data(), GL_STREAM_DRAW);
+	if (has_ao)
+		size += aodata.size();
+	if (size > cap) {
+		glBufferData(GL_ARRAY_BUFFER, sizeof(float)*size, nullptr, GL_STREAM_DRAW);
 		cap = size;
+	}
+	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float)*data.size(), data.data());
+	if (has_ao) {
+		glBufferSubData(GL_ARRAY_BUFFER, sizeof(float)*data.size(), sizeof(float)*aodata.size(), aodata.data());
+		glEnableVertexAttribArray(TERRAIN_I_AOLIGHT);
+		glVertexAttribPointer(TERRAIN_I_AOLIGHT, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)(data.size()*sizeof(float)));
+	} else {
+		glDisableVertexAttribArray(TERRAIN_I_AOLIGHT);
 	}
 }
 void RenderChunk::draw() {
 	glBindVertexArray(va);
+	if (!has_ao) {
+		glVertexAttrib4f(TERRAIN_I_AOLIGHT, 1.f, 1.f, 1.f, 1.f);
+	}
 	glDrawArrays(GL_TRIANGLES, 0, size/6);
 }
 static constexpr uint64_t rc_coord(int x, int z) {
@@ -205,6 +221,10 @@ void RenderLevel::on_unload_chunk(int x, int z) {
 		}
 	}
 }
+void RenderLevel::set_all_dirty() {
+	for (auto it = chunks.begin(); it != chunks.end(); ++it)
+		dirty_chunks.insert(it->second);
+}
 void RenderLevel::set_dirty1(int x, int y, int z) {
 	x>>=4; y>>=4; z>>=4;
 	if (y < 0 || y > 7)
@@ -234,6 +254,7 @@ void RenderLevel::update(Uint64 target) {
 	while (it != dirty_chunks.end() && count < 64) {
 		auto rc = *it;
 		RenderChunk::data.clear();
+		RenderChunk::aodata.clear();
 		for (int y = rc->y; y < rc->y+16; y++)
 			for (int z = rc->z; z < rc->z+16; z++)
 				for (int x = rc->x; x < rc->x+16; x++)
@@ -349,6 +370,14 @@ void draw_raytarget(const RaycastResult &ray)
 static void push_quad(std::vector<float> &data, vec3 a, vec3 ta, vec3 b, vec3 tb, vec3 c, vec3 tc, vec3 d, vec3 td) {
 	data << a << ta << b << tb << c << tc << a << ta << c << tc << d << td;
 }
+static void push_ao(float a, float b, float c, float d) {
+	RenderChunk::aodata.push_back(a);
+	RenderChunk::aodata.push_back(b);
+	RenderChunk::aodata.push_back(c);
+	RenderChunk::aodata.push_back(a);
+	RenderChunk::aodata.push_back(c);
+	RenderChunk::aodata.push_back(d);
+}
 void init_hud()
 {
 	glGenVertexArrays(1, &crosshair_va);
@@ -412,6 +441,7 @@ void draw_hud(int width, int height, uint8_t id, uint8_t data)
 	m = mat4(1.f);
 	glUniformMatrix4fv(terrain_u_viewproj, 1, GL_FALSE, value_ptr(m));
 	glBindVertexArray(handitem_va);
+	glVertexAttrib4f(TERRAIN_I_AOLIGHT, 1.f, 1.f, 1.f, 1.f);
 	glDisable(GL_DEPTH_TEST);
 	std::vector<float> verts;
 	switch (tiles::render_type[id]) {
@@ -575,6 +605,78 @@ static void draw_face_basic(float x0, float y0, float z0, float dx, float dy, fl
 static void draw_face(int x, int y, int z, int f, int tex, int light) {
 	draw_face_basic(x, y, z, 1.f, 1.f, 1.f, f, tex, light);
 }
+static void draw_ao(Level *level, int x, int y, int z, int f) {
+	int adj[8] = {0};
+	switch (f) {
+		case 0:
+			/* the indexes account for the a d b c vertex order */
+			adj[2] = tiles::is_opaque[level->get_tile_id(x  , y-1, z-1)];
+			adj[1] = tiles::is_opaque[level->get_tile_id(x-1, y-1, z-1)];
+			adj[0] = tiles::is_opaque[level->get_tile_id(x-1, y-1, z  )];
+			adj[7] = tiles::is_opaque[level->get_tile_id(x-1, y-1, z+1)];
+			adj[6] = tiles::is_opaque[level->get_tile_id(x  , y-1, z+1)];
+			adj[5] = tiles::is_opaque[level->get_tile_id(x+1, y-1, z+1)];
+			adj[4] = tiles::is_opaque[level->get_tile_id(x+1, y-1, z  )];
+			adj[3] = tiles::is_opaque[level->get_tile_id(x+1, y-1, z-1)];
+			break;
+		case 1:
+			adj[0] = tiles::is_opaque[level->get_tile_id(x  , y+1, z-1)];
+			adj[1] = tiles::is_opaque[level->get_tile_id(x-1, y+1, z-1)];
+			adj[2] = tiles::is_opaque[level->get_tile_id(x-1, y+1, z  )];
+			adj[3] = tiles::is_opaque[level->get_tile_id(x-1, y+1, z+1)];
+			adj[4] = tiles::is_opaque[level->get_tile_id(x  , y+1, z+1)];
+			adj[5] = tiles::is_opaque[level->get_tile_id(x+1, y+1, z+1)];
+			adj[6] = tiles::is_opaque[level->get_tile_id(x+1, y+1, z  )];
+			adj[7] = tiles::is_opaque[level->get_tile_id(x+1, y+1, z-1)];
+			break;
+		case 2:
+			adj[0] = tiles::is_opaque[level->get_tile_id(x  , y+1, z-1)];
+			adj[1] = tiles::is_opaque[level->get_tile_id(x+1, y+1, z-1)];
+			adj[2] = tiles::is_opaque[level->get_tile_id(x+1, y  , z-1)];
+			adj[3] = tiles::is_opaque[level->get_tile_id(x+1, y-1, z-1)];
+			adj[4] = tiles::is_opaque[level->get_tile_id(x  , y-1, z-1)];
+			adj[5] = tiles::is_opaque[level->get_tile_id(x-1, y-1, z-1)];
+			adj[6] = tiles::is_opaque[level->get_tile_id(x-1, y  , z-1)];
+			adj[7] = tiles::is_opaque[level->get_tile_id(x-1, y+1, z-1)];
+			break;
+		case 3:
+			adj[0] = tiles::is_opaque[level->get_tile_id(x  , y+1, z+1)];
+			adj[1] = tiles::is_opaque[level->get_tile_id(x-1, y+1, z+1)];
+			adj[2] = tiles::is_opaque[level->get_tile_id(x-1, y  , z+1)];
+			adj[3] = tiles::is_opaque[level->get_tile_id(x-1, y-1, z+1)];
+			adj[4] = tiles::is_opaque[level->get_tile_id(x  , y-1, z+1)];
+			adj[5] = tiles::is_opaque[level->get_tile_id(x+1, y-1, z+1)];
+			adj[6] = tiles::is_opaque[level->get_tile_id(x+1, y  , z+1)];
+			adj[7] = tiles::is_opaque[level->get_tile_id(x+1, y+1, z+1)];
+			break;
+		case 4:
+			adj[0] = tiles::is_opaque[level->get_tile_id(x-1, y+1, z  )];
+			adj[1] = tiles::is_opaque[level->get_tile_id(x-1, y+1, z-1)];
+			adj[2] = tiles::is_opaque[level->get_tile_id(x-1, y  , z-1)];
+			adj[3] = tiles::is_opaque[level->get_tile_id(x-1, y-1, z-1)];
+			adj[4] = tiles::is_opaque[level->get_tile_id(x-1, y-1, z  )];
+			adj[5] = tiles::is_opaque[level->get_tile_id(x-1, y-1, z+1)];
+			adj[6] = tiles::is_opaque[level->get_tile_id(x-1, y  , z+1)];
+			adj[7] = tiles::is_opaque[level->get_tile_id(x-1, y+1, z+1)];
+			break;
+		case 5:
+			adj[0] = tiles::is_opaque[level->get_tile_id(x+1, y+1, z  )];
+			adj[1] = tiles::is_opaque[level->get_tile_id(x+1, y+1, z+1)];
+			adj[2] = tiles::is_opaque[level->get_tile_id(x+1, y  , z+1)];
+			adj[3] = tiles::is_opaque[level->get_tile_id(x+1, y-1, z+1)];
+			adj[4] = tiles::is_opaque[level->get_tile_id(x+1, y-1, z  )];
+			adj[5] = tiles::is_opaque[level->get_tile_id(x+1, y-1, z-1)];
+			adj[6] = tiles::is_opaque[level->get_tile_id(x+1, y  , z-1)];
+			adj[7] = tiles::is_opaque[level->get_tile_id(x+1, y+1, z-1)];
+			break;
+	}
+	constexpr float aolevels[4] = {1.f, .75f, .5f, .25f};
+	float a = aolevels[adj[0]+adj[1]+adj[2]];
+	float b = aolevels[adj[2]+adj[3]+adj[4]];
+	float c = aolevels[adj[4]+adj[5]+adj[6]];
+	float d = aolevels[adj[6]+adj[7]+adj[0]];
+	push_ao(a,b,c,d);
+}
 void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int data)
 {
 	switch (tiles::render_type[id]) {
@@ -593,6 +695,20 @@ void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int 
 			draw_face(x, y, z, 4, tiles::tex(id, 4, data), LIGHT_SIDEX);
 		if (!tiles::is_opaque[level->get_tile_id(x+1, y, z)])
 			draw_face(x, y, z, 5, tiles::tex(id, 5, data), LIGHT_SIDEX);
+		if (render_ao_enabled) {
+			if (!tiles::is_opaque[level->get_tile_id(x, y-1, z)])
+				draw_ao(level, x, y, z, 0);
+			if (!tiles::is_opaque[level->get_tile_id(x, y+1, z)])
+				draw_ao(level, x, y, z, 1);
+			if (!tiles::is_opaque[level->get_tile_id(x, y, z-1)])
+				draw_ao(level, x, y, z, 2);
+			if (!tiles::is_opaque[level->get_tile_id(x, y, z+1)])
+				draw_ao(level, x, y, z, 3);
+			if (!tiles::is_opaque[level->get_tile_id(x-1, y, z)])
+				draw_ao(level, x, y, z, 4);
+			if (!tiles::is_opaque[level->get_tile_id(x+1, y, z)])
+				draw_ao(level, x, y, z, 5);
+		}
 		break;
 	case RenderType::PLANT: {
 		int tex = tiles::tex(id, 0, data);
@@ -617,6 +733,12 @@ void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int 
 		push_quad(RenderChunk::data, f, ta, b, tb, c, tc, g, td);
 		push_quad(RenderChunk::data, e, ta, a, tb, d, tc, h, td);
 		push_quad(RenderChunk::data, h, ta, d, tb, a, tc, e, td);
+		if (render_ao_enabled) {
+			push_ao(1.f, 1.f, 1.f, 1.f);
+			push_ao(1.f, 1.f, 1.f, 1.f);
+			push_ao(1.f, 1.f, 1.f, 1.f);
+			push_ao(1.f, 1.f, 1.f, 1.f);
+		}
 		break;
 	}
 	case RenderType::SLAB:
@@ -631,6 +753,19 @@ void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int 
 			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 4, tiles::tex(id, 4, data), LIGHT_SIDEX, 1.f, .5f);
 		if (!tiles::is_opaque[level->get_tile_id(x+1, y, z)])
 			draw_face_basic(x, y, z, 1.f, .5f, 1.f, 5, tiles::tex(id, 5, data), LIGHT_SIDEX, 1.f, .5f);
+		if (render_ao_enabled) {
+			if (!tiles::is_opaque[level->get_tile_id(x, y-1, z)])
+				draw_ao(level, x, y, z, 0);
+			draw_ao(level, x, y-1, z, 1);
+			if (!tiles::is_opaque[level->get_tile_id(x, y, z-1)])
+				draw_ao(level, x, y, z, 2);
+			if (!tiles::is_opaque[level->get_tile_id(x, y, z+1)])
+				draw_ao(level, x, y, z, 3);
+			if (!tiles::is_opaque[level->get_tile_id(x-1, y, z)])
+				draw_ao(level, x, y, z, 4);
+			if (!tiles::is_opaque[level->get_tile_id(x+1, y, z)])
+				draw_ao(level, x, y, z, 5);
+		}
 		break;
 	case RenderType::WIRE: {
 		bool pinched = tiles::is_opaque[level->get_tile_id(x, y+1, z)];
@@ -688,6 +823,19 @@ void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int 
 			if (pzo && level->get_tile_id(x, y+1, z+1) == 55)
 				draw_face_basic(x, y, z+.9375f, 1.f, 1.f, 1.f, 2, tex+1, light, 1.f, 1.f, true);
 		}
+		if (render_ao_enabled) {
+			push_ao(1.f, 1.f, 1.f, 1.f);
+			if (!pinched) {
+				if (mxo && level->get_tile_id(x-1, y+1, z) == 55)
+					push_ao(1.f, 1.f, 1.f, 1.f);
+				if (pxo && level->get_tile_id(x+1, y+1, z) == 55)
+					push_ao(1.f, 1.f, 1.f, 1.f);
+				if (mzo && level->get_tile_id(x, y+1, z-1) == 55)
+					push_ao(1.f, 1.f, 1.f, 1.f);
+				if (pzo && level->get_tile_id(x, y+1, z+1) == 55)
+					push_ao(1.f, 1.f, 1.f, 1.f);
+			}
+		}
 		break;
 	}
 	case RenderType::TORCH:
@@ -717,6 +865,13 @@ void RenderLevel::draw_block(Level *level, uint8_t id, int x, int y, int z, int 
 		draw_face_basic(x+svec.x, y, z+svec.z-.4375f, 1.f, 1.f, 1.f, 3, tiles::tex(id, 3, data), LIGHT_SIDEZ);
 		draw_face_basic(x+svec.x+.4375f, y, z+svec.z, 1.f, 1.f, 1.f, 4, tiles::tex(id, 4, data), LIGHT_SIDEX);
 		draw_face_basic(x+svec.x-.4375f, y, z+svec.z, 1.f, 1.f, 1.f, 5, tiles::tex(id, 5, data), LIGHT_SIDEX);
+		if (render_ao_enabled) {
+			push_ao(1.f, 1.f, 1.f, 1.f);
+			push_ao(1.f, 1.f, 1.f, 1.f);
+			push_ao(1.f, 1.f, 1.f, 1.f);
+			push_ao(1.f, 1.f, 1.f, 1.f);
+			push_ao(1.f, 1.f, 1.f, 1.f);
+		}
 		break;
 	}
 

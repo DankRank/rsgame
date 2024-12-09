@@ -7,12 +7,14 @@
 namespace rsgame {
 	struct Level;
 	struct RaycastResult;
+	extern bool render_ao_enabled;
 	struct RenderChunk {
-		static std::vector<float> data;
+		static std::vector<float> data, aodata;
 		int x, y, z;
 		size_t size, cap;
 private:
 		GLuint va, vb;
+		bool has_ao;
 public:
 		RenderChunk(int x, int y, int z);
 		void flip();
@@ -29,6 +31,7 @@ public:
 		std::unordered_set<RenderChunk*> dirty_chunks;
 		void on_load_chunk(int x, int z);
 		void on_unload_chunk(int x, int z);
+		void set_all_dirty();
 		void set_dirty1(int x, int y, int z);
 		void set_dirty(int x, int y, int z);
 		void update(Uint64 target = 0);

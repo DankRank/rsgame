@@ -467,6 +467,7 @@ int main(int argc, char** argv)
 					case SDL_SCANCODE_1: id_in_hand = 35; data_in_hand = cloth_color; break;
 					case SDL_SCANCODE_2: id_in_hand = 55; data_in_hand = 0; break;
 					case SDL_SCANCODE_3: id_in_hand = 76; data_in_hand = 0; break;
+					case SDL_SCANCODE_4: id_in_hand = 44; data_in_hand = 0; break;
 					case SDL_SCANCODE_LEFTBRACKET:
 						if (id_in_hand == 35) {
 							cloth_color--;
@@ -482,6 +483,11 @@ int main(int argc, char** argv)
 						}
 						break;
 					case SDL_SCANCODE_L: pos = vec3(33.f, 2.f, 32.f); break;
+					case SDL_SCANCODE_O:
+						render_ao_enabled = !render_ao_enabled;
+						fprintf(stderr, "Ambient Occlusion: %s\n", render_ao_enabled ? "on" : "off");
+						rl->set_all_dirty();
+						break;
 					default:
 						break;
 				}
