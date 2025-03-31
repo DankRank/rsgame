@@ -212,4 +212,41 @@ void texture_disable_filtering() {
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 }
+void VertexArray::setfp(GLuint index, GLuint vb, int size, int stride, int pointer) {
+	if (index >= nattr)
+		nattr = index+1;
+	auto &attr = attrs[index];
+	attr.vb = vb;
+	attr.size = size;
+	attr.stride = stride;
+	attr.pointer = pointer;
+}
+void VertexArray::setff(GLuint index, int size, float f0, float f1, float f2, float f3) {
+	(void)size;
+	if (index >= nattr)
+		nattr = index+1;
+	auto &attr = attrs[index];
+	attr.size = 0;
+	attr.f[0] = f0;
+	attr.f[1] = f1;
+	attr.f[2] = f2;
+	attr.f[3] = f3;
+}
+void VertexArray::bind() const {
+	GLuint vb = -1;
+	for (int i = 0; i < nattr; i++) {
+		auto &attr = attrs[i];
+		if (attr.size) {
+			if (vb != attr.vb) {
+				vb = attr.vb;
+				glBindBuffer(GL_ARRAY_BUFFER, vb);
+			}
+			glEnableVertexAttribArray(i);
+			glVertexAttribPointer(i, attr.size, GL_FLOAT, GL_FALSE, attr.stride*sizeof(float), (void*)(attr.pointer*sizeof(float)));
+		} else {
+			glDisableVertexAttribArray(i);
+			glVertexAttrib4fv(i, attr.f);
+		}
+	}
+}
 }

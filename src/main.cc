@@ -152,6 +152,11 @@ int main(int argc, char** argv)
 		fprintf(stderr, "GLSL%s %d.%02d\n", suffix, glslver/100, glslver%100);
 	}
 
+	// Dummy VAO for GL3.0 Core
+	GLuint va;
+	glGenVertexArrays(1, &va);
+	glBindVertexArray(va);
+
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);
 	glCullFace(GL_BACK);

@@ -13,7 +13,8 @@ namespace rsgame {
 		int x, y, z;
 		size_t size, cap;
 private:
-		GLuint va, vb;
+		VertexArray va;
+		GLuint vb;
 		bool has_ao;
 public:
 		RenderChunk(int x, int y, int z);

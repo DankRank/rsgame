@@ -147,27 +147,21 @@ bool load_textures() {
 bool render_ao_enabled = true;
 std::vector<float> RenderChunk::data;
 std::vector<float> RenderChunk::aodata;
-RenderChunk::RenderChunk(int x, int y, int z) :x(x), y(y), z(z) {
-	glGenVertexArrays(1, &va);
+RenderChunk::RenderChunk(int x, int y, int z) :x(x), y(y), z(z), va() {
 	glGenBuffers(1, &vb);
 	glBindBuffer(GL_ARRAY_BUFFER, vb);
-	glBindVertexArray(va);
-	glEnableVertexAttribArray(TERRAIN_I_POSITION);
-	glEnableVertexAttribArray(TERRAIN_I_TEXCOORD);
-	glEnableVertexAttribArray(TERRAIN_I_LIGHT);
-	glVertexAttribPointer(TERRAIN_I_POSITION, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)0);
-	glVertexAttribPointer(TERRAIN_I_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(3*sizeof(float)));
-	glVertexAttribPointer(TERRAIN_I_LIGHT,    1, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(5*sizeof(float)));
+	va.setfp(TERRAIN_I_POSITION, vb, 3, 6, 0);
+	va.setfp(TERRAIN_I_TEXCOORD, vb, 2, 6, 3);
+	va.setfp(TERRAIN_I_LIGHT,    vb, 1, 6, 5);
+	va.setff(TERRAIN_I_AOLIGHT, 1, 1.f, 1.f, 1.f, 1.f);
 	size = 0;
 	cap = 0;
 }
 RenderChunk::~RenderChunk() {
-	glDeleteVertexArrays(1, &va);
 	glDeleteBuffers(1, &vb);
 }
 void RenderChunk::flip() {
 	has_ao = render_ao_enabled;
-	glBindVertexArray(va);
 	glBindBuffer(GL_ARRAY_BUFFER, vb);
 	size = data.size();
 	if (has_ao)
@@ -179,17 +173,13 @@ void RenderChunk::flip() {
 	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float)*data.size(), data.data());
 	if (has_ao) {
 		glBufferSubData(GL_ARRAY_BUFFER, sizeof(float)*data.size(), sizeof(float)*aodata.size(), aodata.data());
-		glEnableVertexAttribArray(TERRAIN_I_AOLIGHT);
-		glVertexAttribPointer(TERRAIN_I_AOLIGHT, 1, GL_FLOAT, GL_FALSE, sizeof(float), (void*)(data.size()*sizeof(float)));
+		va.setfp(TERRAIN_I_AOLIGHT, vb, 1, 1, data.size());
 	} else {
-		glDisableVertexAttribArray(TERRAIN_I_AOLIGHT);
+		va.setff(TERRAIN_I_AOLIGHT, 1, 1.f, 1.f, 1.f, 1.f);
 	}
 }
 void RenderChunk::draw() {
-	glBindVertexArray(va);
-	if (!has_ao) {
-		glVertexAttrib4f(TERRAIN_I_AOLIGHT, 1.f, 1.f, 1.f, 1.f);
-	}
+	va.bind();
 	glDrawArrays(GL_TRIANGLES, 0, size/6);
 }
 static constexpr uint64_t rc_coord(int x, int z) {
@@ -279,18 +269,14 @@ void RenderLevel::draw(const Frustum &viewfrustum) {
 	}
 }
 #ifdef RSGAME_NETCLIENT
-static GLuint player_va, player_vb;
+static VertexArray player_va;
+static GLuint player_vb;
 void init_player()
 {
-	glGenVertexArrays(1, &player_va);
 	glGenBuffers(1, &player_vb);
 	glBindBuffer(GL_ARRAY_BUFFER, player_vb);
-	glBindVertexArray(player_va);
-	glEnableVertexAttribArray(PLAYER_I_POSITION);
-	glEnableVertexAttribArray(PLAYER_I_TEXCOORD);
-	glVertexAttribPointer(PLAYER_I_POSITION, 4, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void*)(8*sizeof(float)));
-	glVertexAttribPointer(PLAYER_I_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*)0);
-	glVertexAttribDivisor(PLAYER_I_POSITION, 1);
+	player_va.setfp(PLAYER_I_POSITION, player_vb, 4, 4, 4*2);
+	player_va.setfp(PLAYER_I_TEXCOORD, player_vb, 2, 2, 0);
 	const float quad[4*2] = {
 		0.f, 0.f,
 		0.f, 1.f,
@@ -303,7 +289,7 @@ void init_player()
 void draw_players(float *data, int len, vec3 pos, vec3 look)
 {
 	use_program_tex(r_player, {player_tex});
-	glBindVertexArray(player_va);
+	player_va.bind();
 	glBindBuffer(GL_ARRAY_BUFFER, player_vb);
 	glBufferSubData(GL_ARRAY_BUFFER, sizeof(float)*4*2, sizeof(float)*4*len, data);
 	glUniformMatrix4fv(player_u_viewproj, 1, GL_FALSE, value_ptr(viewproj));
@@ -322,20 +308,23 @@ void draw_players(float *data, int len, vec3 pos, vec3 look)
 	mat3 textrans(1.333f*right, vec3(0, -2, 0), vec3(0, .4f, 0)-right*.667f);
 	glUniformMatrix3fv(player_u_textrans, 1, GL_FALSE, value_ptr(textrans));
 	glUniform3fv(player_u_viewpos, 1, value_ptr(pos));
+	glVertexAttribDivisor(PLAYER_I_POSITION, 1);
 	glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, len);
+	glVertexAttribDivisor(PLAYER_I_POSITION, 0);
 }
 #endif
-static GLuint raytarget_va, raytarget_vb;
-static GLuint crosshair_va, crosshair_vb;
-static GLuint handitem_va, handitem_vb;
+static VertexArray raytarget_va;
+static GLuint raytarget_vb;
+static VertexArray crosshair_va;
+static GLuint crosshair_vb;
+static VertexArray handitem_va;
+static GLuint handitem_vb;
 void init_raytarget()
 {
-	glGenVertexArrays(1, &raytarget_va);
 	glGenBuffers(1, &raytarget_vb);
 	glBindBuffer(GL_ARRAY_BUFFER, raytarget_vb);
-	glBindVertexArray(raytarget_va);
-	glEnableVertexAttribArray(FLAT_I_POSITION);
-	glVertexAttribPointer(FLAT_I_POSITION, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), (void*)0);
+	raytarget_va.setfp(FLAT_I_POSITION, raytarget_vb, 3, 3, 0);
+	raytarget_va.setff(FLAT_I_COLOR, 4, .0f, .0f, .0f, .4f);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*8*3, nullptr, GL_STREAM_DRAW);
 }
 void draw_raytarget(const RaycastResult &ray)
@@ -356,11 +345,10 @@ void draw_raytarget(const RaycastResult &ray)
 	glUniformMatrix4fv(0, 1, GL_FALSE, value_ptr(viewproj));
 	glBindBuffer(GL_ARRAY_BUFFER, raytarget_vb);
 	glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(float)*8*3, value_ptr(raytarget_buf[0]));
-	glBindVertexArray(raytarget_va);
+	raytarget_va.bind();
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glLineWidth(2.f);
-	glVertexAttrib4f(FLAT_I_COLOR, .0f, .0f, .0f, .4f);
 	static const uint8_t strip[10] = { 0, 1, 2, 3, 0, 4, 5, 6, 7, 4 };
 	static const uint8_t lines[6] = { 1, 5, 2, 6, 3, 7 };
 	glDrawElements(GL_LINE_STRIP, 10, GL_UNSIGNED_BYTE, strip);
@@ -380,12 +368,10 @@ static void push_ao(float a, float b, float c, float d) {
 }
 void init_hud()
 {
-	glGenVertexArrays(1, &crosshair_va);
 	glGenBuffers(1, &crosshair_vb);
 	glBindBuffer(GL_ARRAY_BUFFER, crosshair_vb);
-	glBindVertexArray(crosshair_va);
-	glEnableVertexAttribArray(FLAT_I_POSITION);
-	glVertexAttribPointer(FLAT_I_POSITION, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), (void*)0);
+	crosshair_va.setfp(FLAT_I_POSITION, crosshair_vb, 2, 2, 0);
+	crosshair_va.setff(FLAT_I_COLOR, 4, 1.f, 1.f, 1.f, 1.f);
 	float crosshair_buf[14*2] = {
 		 0,  0,
 		 9,  1,
@@ -404,16 +390,12 @@ void init_hud()
 	};
 	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*14*2, crosshair_buf, GL_STREAM_DRAW);
 
-	glGenVertexArrays(1, &handitem_va);
 	glGenBuffers(1, &handitem_vb);
 	glBindBuffer(GL_ARRAY_BUFFER, handitem_vb);
-	glBindVertexArray(handitem_va);
-	glEnableVertexAttribArray(TERRAIN_I_POSITION);
-	glEnableVertexAttribArray(TERRAIN_I_TEXCOORD);
-	glEnableVertexAttribArray(TERRAIN_I_LIGHT);
-	glVertexAttribPointer(TERRAIN_I_POSITION, 3, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)0);
-	glVertexAttribPointer(TERRAIN_I_TEXCOORD, 2, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(3*sizeof(float)));
-	glVertexAttribPointer(TERRAIN_I_LIGHT,    1, GL_FLOAT, GL_FALSE, 6*sizeof(float), (void*)(5*sizeof(float)));
+	handitem_va.setfp(TERRAIN_I_POSITION, handitem_vb, 3, 6, 0);
+	handitem_va.setfp(TERRAIN_I_TEXCOORD, handitem_vb, 2, 6, 3);
+	handitem_va.setfp(TERRAIN_I_LIGHT,    handitem_vb, 1, 6, 5);
+	handitem_va.setff(TERRAIN_I_AOLIGHT, 1, 1.f, 1.f, 1.f, 1.f);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(float)*3*2*3*6, nullptr, GL_STREAM_DRAW);
 }
 void draw_hud(int width, int height, uint8_t id, uint8_t data)
@@ -424,14 +406,13 @@ void draw_hud(int width, int height, uint8_t id, uint8_t data)
 	m[0][0] = 5*.5f/width;
 	m[1][1] = 5*.5f/height;
 	glUniformMatrix4fv(flat_u_viewproj, 1, GL_FALSE, value_ptr(m));
-	glBindVertexArray(crosshair_va);
+	crosshair_va.bind();
 	glDisable(GL_DEPTH_TEST);
 	/* this makes the blend function s(1-d) + (1-s)d
 	 * s=0: d
 	 * s=1: 1-d */
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_COLOR);
-	glVertexAttrib4f(FLAT_I_COLOR, 1.f, 1.f, 1.f, 1.f);
 	glDrawArrays(GL_TRIANGLE_FAN, 0, 14);
 	glDisable(GL_BLEND);
 	glEnable(GL_DEPTH_TEST);
@@ -440,8 +421,7 @@ void draw_hud(int width, int height, uint8_t id, uint8_t data)
 	use_program_tex(r_terrain, {terrain_tex, terrain_lighttex});
 	m = mat4(1.f);
 	glUniformMatrix4fv(terrain_u_viewproj, 1, GL_FALSE, value_ptr(m));
-	glBindVertexArray(handitem_va);
-	glVertexAttrib4f(TERRAIN_I_AOLIGHT, 1.f, 1.f, 1.f, 1.f);
+	handitem_va.bind();
 	glDisable(GL_DEPTH_TEST);
 	std::vector<float> verts;
 	switch (tiles::render_type[id]) {

@@ -39,5 +39,25 @@ namespace rsgame {
 	};
 	void use_program_tex(const Program &prog, std::initializer_list<Texture> texs = {});
 	void texture_disable_filtering();
+	struct VertexArray {
+		unsigned nattr;
+		struct Attr {
+			unsigned char size;
+			union {
+				struct {
+					float f[4];
+				};
+				struct {
+					GLuint vb;
+					int stride;
+					int pointer;
+				};
+			};
+		};
+		Attr attrs[4];
+		void setfp(GLuint index, GLuint buf, int size, int stride, int pointer);
+		void setff(GLuint index, int size, float f0, float f1, float f2, float f3);
+		void bind() const;
+	};
 }
 #endif
