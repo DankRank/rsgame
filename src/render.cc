@@ -308,9 +308,17 @@ void draw_players(float *data, int len, vec3 pos, vec3 look)
 	mat3 textrans(1.333f*right, vec3(0, -2, 0), vec3(0, .4f, 0)-right*.667f);
 	glUniformMatrix3fv(player_u_textrans, 1, GL_FALSE, value_ptr(textrans));
 	glUniform3fv(player_u_viewpos, 1, value_ptr(pos));
-	glVertexAttribDivisor(PLAYER_I_POSITION, 1);
-	glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, len);
-	glVertexAttribDivisor(PLAYER_I_POSITION, 0);
+	if (has_instanced_arrays()) {
+		glVertexAttribDivisor(PLAYER_I_POSITION, 1);
+		glDrawArraysInstanced(GL_TRIANGLE_FAN, 0, 4, len);
+		glVertexAttribDivisor(PLAYER_I_POSITION, 0);
+	} else {
+		glDisableVertexAttribArray(PLAYER_I_POSITION);
+		for (int i = 0; i < len; i++) {
+			glVertexAttrib4fv(PLAYER_I_POSITION, data+4*i);
+			glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+		}
+	}
 }
 #endif
 static VertexArray raytarget_va;

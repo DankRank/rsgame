@@ -250,4 +250,20 @@ void VertexArray::bind() const {
 		}
 	}
 }
+bool has_instanced_arrays() {
+	static bool result = false;
+	static bool inited = false;
+	if (!inited) {
+		int glver = epoxy_gl_version();
+		result = glver >= 33
+			|| glver >= 30 && !epoxy_is_desktop_gl()
+			|| epoxy_has_gl_extension("GL_ANGLE_instanced_arrays")
+			|| epoxy_has_gl_extension("GL_ARB_instanced_arrays") && epoxy_has_gl_extension("GL_ARB_draw_instanced")
+			|| epoxy_has_gl_extension("GL_EXT_instanced_arrays")
+			|| epoxy_has_gl_extension("GL_NV_instanced_arrays") && epoxy_has_gl_extension("GL_NV_draw_instanced");
+		fprintf(stderr, "has_instanced_arrays: %s\n", result ? "true" : "false");
+		inited = true;
+	}
+	return result;
+}
 }

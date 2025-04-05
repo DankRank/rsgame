@@ -59,5 +59,6 @@ namespace rsgame {
 		void setff(GLuint index, int size, float f0, float f1, float f2, float f3);
 		void bind() const;
 	};
+	bool has_instanced_arrays();
 }
 #endif
