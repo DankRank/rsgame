@@ -235,7 +235,7 @@ void VertexArray::setff(GLuint index, int size, float f0, float f1, float f2, fl
 }
 void VertexArray::bind() const {
 	GLuint vb = -1;
-	for (int i = 0; i < nattr; i++) {
+	for (size_t i = 0; i < nattr; i++) {
 		auto &attr = attrs[i];
 		if (attr.size) {
 			if (vb != attr.vb) {
