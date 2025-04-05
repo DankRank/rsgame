@@ -1,9 +1,9 @@
 uniform mat4 u_viewproj;
 uniform mat3 u_textrans;
 uniform vec3 u_viewpos;
-in vec4 i_position;
-in vec2 i_texcoord;
-out vec2 v_texcoord;
+attribute vec4 i_position;
+attribute vec2 i_texcoord;
+varying vec2 v_texcoord;
 #define PI 3.1415927410125732421875
 #define NROTS 8.
 void main() {

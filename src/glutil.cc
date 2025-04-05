@@ -10,12 +10,13 @@ GLuint compile_shader(GLenum type, const char *name, const char *source) {
 		fprintf(stderr, "Couldn't glCreateShader!\n");
 		return 0;
 	}
-	const char *sources[2] = {
+	const char *sources[3] = {
 		shader_prologue,
+		type == GL_VERTEX_SHADER ? vertex_prologue : fragment_prologue,
 		source
 	};
-	GLint lens[2] = {-1, -1};
-	glShaderSource(shader, 2, sources, lens);
+	GLint lens[3] = {-1, -1, -1};
+	glShaderSource(shader, 3, sources, lens);
 	glCompileShader(shader);
 	GLint status, loglen;
 	glGetShaderiv(shader, GL_COMPILE_STATUS, &status);

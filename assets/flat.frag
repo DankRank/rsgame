@@ -1,6 +1,5 @@
-in vec2 v_texcoord;
-in vec4 v_color;
-out vec4 o_color;
+varying vec2 v_texcoord;
+varying vec4 v_color;
 void main() {
-	o_color = v_color;
+	gl_FragColor = v_color;
 }

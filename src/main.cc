@@ -14,8 +14,11 @@
 namespace rsgame {
 bool verbose = true;
 static bool gles = false;
+static bool gles3 = false;
 static bool glcore = false;
 const char *shader_prologue = nullptr;
+const char *vertex_prologue = nullptr;
+const char *fragment_prologue = nullptr;
 bool vsync = true;
 bool fullscreen = false;
 SDL_Window* window = nullptr;
@@ -88,6 +91,8 @@ int main(int argc, char** argv)
 	for (int i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--gles")) {
 			gles = true;
+		} else if (!strcmp(argv[i], "--gles3")) {
+			gles3 = true;
 		} else if (!strcmp(argv[i], "--glcore")) {
 			glcore = true;
 		} else if (!strcmp(argv[i], "--nosync")) {
@@ -110,20 +115,31 @@ int main(int argc, char** argv)
 	}
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 	if (gles) {
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 2);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-		shader_prologue = "#version 300 es\nprecision mediump float;\n";
-	} else if (glcore) {
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-		shader_prologue = "#version 150 core\n";
+		shader_prologue = "#version 100\nprecision mediump float;\n#define in attribute\n#define out varying\n";
+		vertex_prologue = "";
+		fragment_prologue = "";
 	} else {
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
-		shader_prologue = "#version 130\n";
+		vertex_prologue = "#define attribute in\n#define varying out\n";
+		fragment_prologue = "#define varying in\n#define gl_FragColor o_color\nout vec4 o_color;\n#define texture2D texture\n";
+		if (gles3) {
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+			shader_prologue = "#version 300 es\nprecision mediump float;\n";
+		} else if (glcore) {
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 2);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+			shader_prologue = "#version 150 core\n";
+		} else {
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, 0);
+			shader_prologue = "#version 130\n";
+		}
 	}
 	int width = 854, height = 480;
 #ifdef RSGAME_NETCLIENT
@@ -143,19 +159,21 @@ int main(int argc, char** argv)
 		return 1;
 	}
 	SDL_GL_MakeCurrent(window, context);
-	gles = !epoxy_is_desktop_gl();
 	{
 		int glver = epoxy_gl_version();
 		int glslver = epoxy_glsl_version();
+		bool gles = !epoxy_is_desktop_gl();
 		const char *suffix = gles ? " ES" : "";
 		fprintf(stderr, "OpenGL%s %d.%d / ", suffix, glver/10, glver%10);
 		fprintf(stderr, "GLSL%s %d.%02d\n", suffix, glslver/100, glslver%100);
 	}
 
-	// Dummy VAO for GL3.0 Core
-	GLuint va;
-	glGenVertexArrays(1, &va);
-	glBindVertexArray(va);
+	// Dummy VAO for GL3.2 Core
+	if (glcore) {
+		GLuint va;
+		glGenVertexArrays(1, &va);
+		glBindVertexArray(va);
+	}
 
 	glEnable(GL_DEPTH_TEST);
 	glEnable(GL_CULL_FACE);

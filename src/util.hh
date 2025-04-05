@@ -15,7 +15,7 @@ namespace rsgame {
 
 	// stuff defined in main.cc
 	extern bool verbose;
-	extern const char *shader_prologue;
+	extern const char *shader_prologue, *vertex_prologue, *fragment_prologue;
 	extern mat4 viewproj;
 }
 #endif
